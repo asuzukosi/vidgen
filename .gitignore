@@ -1,0 +1,64 @@
+# environment variables
+.env
+
+# claude documentation
+.claude_docs/
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# virtual environments
+venv/
+env/
+ENV/
+
+# output directories
+output/
+temp/
+*.mp4
+*.mp3
+*.wav
+
+# ide files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# os files
+.DS_Store
+Thumbs.db
+
+# test files
+test_*.pdf
+sample_*.pdf
+
+# logs
+*.log
+*.log.*
+
+# virtual environments
+venv/
+venv
+.venv/
+.venv

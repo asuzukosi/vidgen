@@ -1,0 +1,13 @@
+# Test dependencies for vidgen
+
+# Core testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+
+# For mocking and testing
+mock>=5.1.0
+
+# All production dependencies
+-r requirements.txt
+

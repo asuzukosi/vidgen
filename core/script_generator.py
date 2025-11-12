@@ -1,0 +1,312 @@
+"""
+vidgen script generator module
+
+generates natural narration scripts from video outline segments.
+uses openai to convert structured content into engaging voiceover scripts.
+"""
+
+import os
+import json
+from typing import List, Dict, Optional
+from openai import OpenAI
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class ScriptGenerator:
+    """generate voiceover scripts from video segments."""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        initialize script generator.
+        args:
+            api_key: openai api key
+        """
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("openai api key required")
+        
+        self.client = OpenAI(api_key=self.api_key)
+        self.model = "gpt-4o"
+    
+    def generate_script(self, video_outline: Dict) -> Dict:
+        """
+        generate complete voiceover script from video outline.
+        args:
+            video_outline: video outline with segments
+        returns:
+            dictionary with generated scripts for each segment
+        """
+        logger.info(f"generating script for {len(video_outline['segments'])} segments")
+        
+        segments_with_scripts = []
+        
+        for i, segment in enumerate(video_outline['segments'], 1):
+            logger.info(f"generating script for segment {i}: {segment['title']}")
+            
+            script_text = self._generate_segment_script(
+                segment,
+                i,
+                len(video_outline['segments']),
+                video_outline.get('title', '')
+            )
+            
+            # add script to segment
+            segment_with_script = segment.copy()
+            segment_with_script['script'] = script_text
+            segment_with_script['word_count'] = len(script_text.split())
+            
+            segments_with_scripts.append(segment_with_script)
+        
+        # generate transitions
+        segments_with_scripts = self._add_transitions(segments_with_scripts)
+        
+        result = {
+            'title': video_outline.get('title', 'Untitled'),
+            'total_segments': len(segments_with_scripts),
+            'segments': segments_with_scripts,
+            'full_script': self._compile_full_script(segments_with_scripts)
+        }
+        
+        logger.info("script generation complete")
+        return result
+    
+    def _generate_segment_script(self, segment: Dict, segment_num: int, 
+                                 total_segments: int, video_title: str) -> str:
+        """
+        generate script for a single segment.
+        
+        args:
+            segment: segment dictionary
+            segment_num: segment number
+            total_segments: total number of segments
+            video_title: overall video title
+        returns:
+            script text
+        """
+        prompt = self._create_script_prompt(segment, segment_num, total_segments, video_title)
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert scriptwriter for educational explainer videos. You write clear, engaging, and conversational narration that's easy to understand and remember."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            script = response.choices[0].message.content.strip()
+            
+            # clean up the script
+            script = self._clean_script(script)
+            
+            logger.info(f"generated {len(script.split())} words for segment {segment_num}")
+            return script
+            
+        except Exception as e:
+            logger.error(f"error generating script for segment {segment_num}: {str(e)}")
+            # Fallback to basic script
+            return self._create_fallback_script(segment)
+    
+    def _create_script_prompt(self, segment: Dict, segment_num: int, 
+                             total_segments: int, video_title: str) -> str:
+        """create prompt for script generation."""
+        
+        is_intro = segment_num == 1
+        is_conclusion = segment_num == total_segments
+        
+        key_points_text = "\n".join([f"- {point}" for point in segment.get('key_points', [])])
+        
+        prompt = f"""Write a {segment['duration']}-second voiceover script for an explainer video segment.
+
+Video Title: {video_title}
+Segment {segment_num}/{total_segments}: {segment['title']}
+Purpose: {segment.get('purpose', 'Explain this topic')}
+
+Key Points to Cover:
+{key_points_text if key_points_text else '- ' + segment.get('purpose', 'Main concept')}
+
+Guidelines:
+1. Write in a conversational, friendly tone
+2. Aim for approximately {segment['duration'] * 2.5:.0f} words (based on ~150 words/minute speaking rate)
+3. Start naturally - {"introduce the topic" if is_intro else "continue from the previous segment"}
+4. {"End with an engaging hook" if not is_conclusion else "End with a strong conclusion or call-to-action"}
+5. Use simple, clear language
+6. Make it engaging and memorable
+7. Don't use stage directions or descriptions - only the words to be spoken
+8. Don't number points or use bullet formatting
+
+Write the script now:"""
+        
+        return prompt
+    
+    def _clean_script(self, script: str) -> str:
+        """
+        clean up generated script text.
+        args:
+            script: raw script text
+        returns:
+            cleaned script
+        """
+        # remove any stage directions or formatting markers
+        script = script.replace('[', '').replace(']', '')
+        script = script.replace('**', '')
+        
+        # remove labels like "SCRIPT:" or "Narrator:"
+        lines = []
+        for line in script.split('\n'):
+            line = line.strip()
+            if line and not line.endswith(':') or len(line) > 20:
+                # remove common prefixes
+                for prefix in ['SCRIPT:', 'Narrator:', 'Voice:', 'VO:']:
+                    if line.startswith(prefix):
+                        line = line[len(prefix):].strip()
+                lines.append(line)
+        
+        return ' '.join(lines)
+    
+    def _create_fallback_script(self, segment: Dict) -> str:
+        """create a basic script as fallback."""
+        title = segment['title']
+        purpose = segment.get('purpose', '')
+        key_points = segment.get('key_points', [])
+        
+        script_parts = [f"Let's talk about {title}."]
+        
+        if purpose:
+            script_parts.append(purpose)
+        
+        for point in key_points[:3]:
+            script_parts.append(point)
+        
+        return ' '.join(script_parts)
+    
+    def _add_transitions(self, segments: List[Dict]) -> List[Dict]:
+        """
+        add smooth transitions between segments.
+        args:
+            segments: list of segments with scripts
+        returns:
+            updated segments with transitions
+        """
+        for i in range(len(segments) - 1):
+            current = segments[i]
+            next_seg = segments[i + 1]
+            
+            # Add transition hint (can be used in video generation)
+            current['transition_to'] = next_seg['title']
+            current['transition_type'] = 'fade'  # Default transition
+        
+        return segments
+    
+    def _compile_full_script(self, segments: List[Dict]) -> str:
+        """
+        compile full script from all segments.
+        args:
+            segments: list of segments with scripts
+        returns:
+            full script text
+        """
+        full_script_parts = []
+        
+        for i, segment in enumerate(segments, 1):
+            full_script_parts.append(f"[SEGMENT {i}: {segment['title']}]")
+            full_script_parts.append(segment.get('script', ''))
+            full_script_parts.append("")  # Empty line between segments
+        
+        return '\n'.join(full_script_parts)
+    
+    def save_script(self, script_data: Dict, output_path: str):
+        """
+        save script data to JSON file.
+        args:
+            script_data: script data dictionary
+            output_path: path to save JSON
+        """
+        with open(output_path, 'w') as f:
+            json.dump(script_data, f, indent=2)
+        
+        logger.info(f"Saved script to {output_path}")
+    
+    def export_script_text(self, script_data: Dict, output_path: str):
+        """
+        export script as plain text file.
+        args:
+            script_data: script data dictionary
+            output_path: path to save text file
+        """
+        with open(output_path, 'w') as f:
+            f.write(f"SCRIPT: {script_data['title']}\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(script_data['full_script'])
+        
+        logger.info(f"exported script text to {output_path}")
+
+
+def generate_script(video_outline: Dict, api_key: Optional[str] = None) -> Dict:
+    """
+    convenience function to generate script.
+    args:
+        video_outline: video outline dictionary
+        api_key: openai api key
+    returns:
+        script data
+    """
+    generator = ScriptGenerator(api_key)
+    return generator.generate_script(video_outline)
+
+
+if __name__ == "__main__":
+    # test the vidgen script generator
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("usage: python script_generator.py <video_outline.json>")
+        sys.exit(1)
+    
+    outline_path = sys.argv[1]
+    
+    print("**** loading video outline ****")
+    with open(outline_path, 'r') as f:
+        outline = json.load(f)
+    
+    print(f"loaded outline with {len(outline['segments'])} segments\n")
+    
+    print("**** generating scripts ****\n")
+    generator = ScriptGenerator()
+    script_data = generator.generate_script(outline)
+    
+    print(f"**** generated script ****")
+    print(f"title: {script_data['title']}")
+    print(f"total segments: {script_data['total_segments']}")
+    print(f"total words: {sum(s['word_count'] for s in script_data['segments'])}\n")
+    
+    for i, segment in enumerate(script_data['segments'], 1):
+        print(f"\n{'='*80}\n")
+        print(f"segment {i}: {segment['title']}")
+        print(f"{'='*80}\n")
+        print(f"duration: {segment['duration']}s | words: {segment['word_count']}")
+        print(f"\nscript:")
+        print(segment['script'])
+    
+    # save script
+    output_path = "temp/video_script.json"
+    generator.save_script(script_data, output_path)
+    
+    text_output = "temp/video_script.txt"
+    generator.export_script_text(script_data, text_output)
+    
+    print(f"\n{'='*80}")
+    print(f"script saved to: {output_path}")
+    print(f"text exported to: {text_output}")
+    print(f"{'='*80}\n")
+
