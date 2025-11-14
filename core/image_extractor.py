@@ -116,10 +116,9 @@ class ImageExtractor:
                 except Exception as e:
                     logger.error(f"Error extracting image {img_index} from page {page_num + 1}: {str(e)}")
                     continue
-        
+        logger.info(f"Extracted {image_count} images from {len(pdf_document)} pages")
         pdf_document.close()
         # log image extraction
-        logger.info(f"Extracted {image_count} images from {len(pdf_document)} pages")
         # save metadata to json
         self._save_metadata()
         # return images data

@@ -20,12 +20,17 @@ import argparse
 # add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# pillow 10.0.0+ compatibility fix for moviepy
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.LANCZOS
+
 from moviepy.editor import (
     VideoClip, ImageClip, AudioFileClip, CompositeVideoClip,
     concatenate_videoclips
 )
-from moviepy.video.fx import fadein, fadeout
-from PIL import Image
+from moviepy.video.fx.fadein import fadein
+from moviepy.video.fx.fadeout import fadeout
 from openai import OpenAI
 
 from core.video_utils import VideoUtils
@@ -97,7 +102,7 @@ class AIGeneratedGenerator:
             logger.info(f"creating video segment {i}/{len(script_with_images['segments'])}: {segment['title']}")
             
             segment_clip = self._create_segment_clip(segment, i)
-            if segment_clip:
+            if segment_clip is not None:
                 clips.append(segment_clip)
         
         # create end card

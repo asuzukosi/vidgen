@@ -6,7 +6,7 @@ handles audio file creation and timing metadata.
 
 import os
 import json
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 from pathlib import Path
 from core.logger import get_logger
 from pydub import AudioSegment
@@ -38,6 +38,9 @@ class VoiceoverGenerator:
         # create output directory
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         
+        # always initialize gtts as fallback
+        self._init_gtts()
+        
         # initialize provider
         if self.provider == "elevenlabs":
             if not self.api_key:
@@ -45,9 +48,6 @@ class VoiceoverGenerator:
                 self.provider = "gtts"
             else:
                 self._init_elevenlabs()
-        
-        if self.provider == "gtts":
-            self._init_gtts()
     
     def _init_elevenlabs(self):
         """initialize elevenlabs client."""
@@ -64,11 +64,9 @@ class VoiceoverGenerator:
         except ImportError:
             logger.error("elevenlabs package not installed. install with: pip install elevenlabs")
             self.provider = "gtts"
-            self._init_gtts()
         except Exception as e:
             logger.error(f"error initializing elevenlabs: {str(e)}")
             self.provider = "gtts"
-            self._init_gtts()
     
     def _init_gtts(self):
         """initialize gtts."""
@@ -157,10 +155,11 @@ class VoiceoverGenerator:
             from elevenlabs import save
             
             # generate audio
+            # using eleven_turbo_v2_5 which is available on free tier
             audio_generator = self.client.text_to_speech.convert(
                 voice_id=self.voice_id,
                 text=text,
-                model_id="eleven_monolingual_v1",
+                model_id="eleven_turbo_v2_5",
                 voice_settings=self.voice_settings
             )
             save(audio_generator, output_path)

@@ -14,14 +14,21 @@ from typing import Dict, List, Optional
 import numpy as np
 import argparse
 import json
+
 # add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# pillow 10.0.0+ compatibility fix for moviepy
+from PIL import Image, ImageDraw
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.LANCZOS
+
 from moviepy.editor import (
     VideoClip, ImageClip, AudioFileClip, CompositeVideoClip,
     concatenate_videoclips
 )
-from moviepy.video.fx import fadein, fadeout
-from PIL import Image, ImageDraw
+from moviepy.video.fx.fadein import fadein
+from moviepy.video.fx.fadeout import fadeout
 from core.video_utils import VideoUtils
 from core.logger import get_logger
 
@@ -73,7 +80,7 @@ class AnimatedGenerator:
             logger.info(f"Creating animated segment {i}/{len(script_with_audio['segments'])}: {segment['title']}")
             
             segment_clip = self._create_animated_segment(segment, i)
-            if segment_clip:
+            if segment_clip is not None:
                 clips.append(segment_clip)
         
         # create animated end card
@@ -181,7 +188,7 @@ class AnimatedGenerator:
             image_clip = self._create_animated_image(segment, duration)
             # composite all elements
             clips_to_composite = [background_clip]
-            if image_clip:
+            if image_clip is not None:
                 clips_to_composite.append(image_clip)
             clips_to_composite.extend(text_clips)
             composite = CompositeVideoClip(clips_to_composite, size=(self.width, self.height))
@@ -255,7 +262,7 @@ class AnimatedGenerator:
             max_width=self.width - 200
         )
         
-        if title_img:
+        if title_img is not None:
             title_clip = ImageClip(title_img).set_duration(duration)
             
             # slide in animation
@@ -281,7 +288,7 @@ class AnimatedGenerator:
                 max_width=int(self.width * 0.5)
             )
             
-            if point_img:
+            if point_img is not None:
                 point_clip = ImageClip(point_img).set_duration(duration - delay)
                 point_clip = point_clip.set_position((120, y_pos))
                 point_clip = point_clip.set_start(delay)
@@ -324,6 +331,14 @@ class AnimatedGenerator:
                 color=(255, 255, 255),
                 max_width=max_width
             )
+            
+            # convert RGBA to RGB for moviepy compatibility
+            if img.mode == 'RGBA':
+                # create RGB background
+                rgb_img = Image.new('RGB', img.size, (0, 0, 0))
+                # composite RGBA onto RGB background
+                rgb_img.paste(img, mask=img.split()[3])  # use alpha channel as mask
+                img = rgb_img
             
             return np.array(img)
         except Exception as e:
@@ -401,6 +416,13 @@ class AnimatedGenerator:
                 fill=(255, 200, 0, 255),
                 width=3
             )
+            
+            # convert RGBA to RGB for moviepy compatibility
+            if img.mode == 'RGBA':
+                rgb_img = Image.new('RGB', img.size, (0, 0, 0))
+                rgb_img.paste(img, mask=img.split()[3])
+                img = rgb_img
+            
             return np.array(img)
         
         clip = VideoClip(make_frame, duration=duration)

@@ -11,7 +11,8 @@ import numpy as np
 from moviepy.editor import (
     TextClip
 )
-from moviepy.video.fx import fadein, fadeout
+from moviepy.video.fx.fadein import fadein
+from moviepy.video.fx.fadeout import fadeout
 from core.logger import get_logger
 logger = get_logger(__name__)
 

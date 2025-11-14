@@ -167,6 +167,12 @@ vidgen/
 ├── temp/                    # Temporary files
 ├── vidgen.py               # TUI entry point ✓
 ├── script.py               # CLI entry point ✓
+├── test_stage1_parsing.py  # Test Stage 1 independently
+├── test_stage2_images.py   # Test Stage 2 independently
+├── test_stage3_content.py  # Test Stage 3 independently
+├── test_stage4_script.py   # Test Stage 4 independently
+├── test_stage5_video.py    # Test Stage 5 (all styles)
+├── TEST_STAGES_README.md   # Stage testing documentation
 ├── config.yaml             # Configuration file ✓
 ├── requirements.txt        # Python dependencies ✓
 └── README.md              # This file ✓
@@ -269,7 +275,37 @@ vidgen/
    - `ELEVENLABS_API_KEY` (optional, will fallback to gTTS)
    - `UNSPLASH_ACCESS_KEY` (optional, for stock images)
 
-### Test Each Phase
+### 🧪 Test Each Stage Independently (NEW!)
+
+**Comprehensive stage testing scripts** let you test and evaluate each stage independently with full control:
+
+```bash
+# Stage 1: PDF Parsing
+python test_stage1_parsing.py document.pdf
+
+# Stage 2: Image Extraction & AI Labeling
+python test_stage2_images.py document.pdf [--use-cached]
+
+# Stage 3: Content Analysis & Segmentation
+python test_stage3_content.py document.pdf [--use-cached] [--skip-stock]
+
+# Stage 4: Script Generation & Voiceover
+python test_stage4_script.py document.pdf [--use-cached] [--provider elevenlabs|gtts]
+
+# Stage 5: Video Generation (all styles)
+python test_stage5_video.py document.pdf --style slideshow|animated|ai_generated|combined
+```
+
+**Features:**
+- 📋 Detailed explanations of each stage's approach at the top of each file
+- 🔄 Option to use cached results from previous stages (`--use-cached`)
+- 📊 Comprehensive console output showing results and statistics
+- 💾 Saves intermediate files for inspection and next stage
+- 🎬 Test all video styles independently (Stage 5)
+
+**See [TEST_STAGES_README.md](TEST_STAGES_README.md) for complete documentation!**
+
+### Test Each Phase (Quick Tests)
 
 **Using the TUI:**
 ```bash
@@ -319,6 +355,8 @@ MIT License
 📚 **Detailed guides and documentation:**
 
 - **[README.md](README.md)** - This file - quick start guide and overview
+
+- **[TEST_STAGES_README.md](TEST_STAGES_README.md)** - 🧪 **NEW!** Complete guide to testing each stage independently with full control
 
 - **[COMBINED_STYLE.md](.claude_docs/COMBINED_STYLE.md)** - Complete guide to the AI-powered combined style (RECOMMENDED!)
 

@@ -18,12 +18,17 @@ import numpy as np
 # add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# pillow 10.0.0+ compatibility fix for moviepy
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.LANCZOS
+
 from moviepy.editor import (
-    VideoClip, ImageClip, AudioFileClip, CompositeVideoClip,
-    concatenate_videoclips, TextClip
+    VideoClip, ImageClip, AudioFileClip,
+    concatenate_videoclips
 )
-from moviepy.video.fx import fadein, fadeout, crossfadein, crossfadeout
-from PIL import Image, ImageDraw, ImageFont
+from moviepy.video.fx.fadein import fadein
+from moviepy.video.fx.fadeout import fadeout
 
 from core.video_utils import VideoUtils
 from core.logger import get_logger
@@ -69,7 +74,7 @@ class SlideshowGenerator:
             logger.info(f"creating slide {i}/{len(script_with_audio['segments'])}: {segment['title']}")
             
             segment_clip = self._create_segment_clip(segment, i)
-            if segment_clip:
+            if segment_clip is not None:
                 clips.append(segment_clip)
         
         # Create end card
@@ -190,8 +195,8 @@ class SlideshowGenerator:
                 clip = clip.set_duration(audio.duration)
             
             # Add transitions
-            clip = clip.fx(crossfadein, self.transition_duration)
-            clip = clip.fx(crossfadeout, self.transition_duration)
+            clip = clip.fx(fadein, self.transition_duration)
+            clip = clip.fx(fadeout, self.transition_duration)
             
             return clip
             

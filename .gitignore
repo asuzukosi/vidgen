@@ -62,3 +62,13 @@ venv/
 venv
 .venv/
 .venv
+
+# input files
+inputs/
+
+# output files
+output/
+temp/
+*.mp4
+*.mp3
+*.wav

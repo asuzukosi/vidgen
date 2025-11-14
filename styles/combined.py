@@ -107,7 +107,7 @@ class CombinedGenerator:
             logger.info(f"Segment {i}/{len(segments_with_styles['segments'])}: {segment['title']} ({style})")
             
             clip = self._generate_segment_with_style(segment, i, style)
-            if clip:
+            if clip is not None:
                 clips.append(clip)
         
         # End card (always slideshow style)
