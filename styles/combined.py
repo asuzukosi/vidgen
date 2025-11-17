@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from moviepy.editor import concatenate_videoclips, AudioFileClip
 from openai import OpenAI
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from styles.slideshow import SlideshowGenerator
 from styles.animated import AnimatedGenerator
@@ -60,6 +61,13 @@ class CombinedGenerator:
         self.slideshow_gen = SlideshowGenerator(config)
         self.animated_gen = AnimatedGenerator(config)
         self.ai_gen = AIGeneratedGenerator(config)
+        
+        # initialize jinja2 environment for prompt templates
+        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(prompts_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
         
         logger.info(f"Initialized CombinedGenerator: {self.width}x{self.height} @ {self.fps}fps")
     
@@ -184,25 +192,16 @@ class CombinedGenerator:
         prompt = self._create_style_selection_prompt(segment, segment_num)
         
         try:
+            # load system prompt from template
+            system_template = self.jinja_env.get_template('style_selection_system.j2')
+            system_prompt = system_template.render()
+            
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are an expert video director specializing in educational explainer videos.
-Your task is to select the best visual style for each video segment based on its content.
-
-Available styles:
-1. SLIDESHOW - Clean, professional presentation style with text overlays. Best for: lists, bullet points, definitions, straightforward concepts.
-2. ANIMATED - Dynamic motion graphics with animations. Best for: processes, workflows, cause-and-effect, dynamic concepts.
-3. AI_GENERATED - Custom AI-generated visuals. Best for: abstract concepts, creative ideas, topics needing unique illustrations.
-
-Consider:
-- Content complexity and abstraction
-- Need for visual metaphors
-- Whether concepts are concrete or abstract
-- Audience engagement needs
-- Information density"""
+                        "content": system_prompt
                     },
                     {
                         "role": "user",
@@ -227,33 +226,12 @@ Consider:
     def _create_style_selection_prompt(self, segment: Dict, segment_num: int) -> str:
         """Create prompt for style selection."""
         
-        title = segment['title']
-        purpose = segment.get('purpose', '')
-        key_points = segment.get('key_points', [])
-        visual_keywords = segment.get('visual_keywords', [])
-        
-        prompt = f"""Analyze this video segment and select the best visual style.
-
-Segment {segment_num}: {title}
-
-Purpose: {purpose}
-
-Key Points:
-{chr(10).join([f"- {point}" for point in key_points[:3]])}
-
-Visual Keywords: {', '.join(visual_keywords[:5])}
-
-Available Images:
-- PDF images: {len(segment.get('pdf_images', []))}
-- Stock images: {'Yes' if segment.get('stock_image') else 'No'}
-
-Select ONE style and provide a brief reason:
-
-Format your response EXACTLY as:
-STYLE: [slideshow/animated/ai_generated]
-REASON: [one sentence explaining why this style works best]
-
-Choose now:"""
+        # load and render template
+        template = self.jinja_env.get_template('style_selection_prompt.j2')
+        prompt = template.render(
+            segment=segment,
+            segment_num=segment_num
+        )
         
         return prompt
     

@@ -11,6 +11,8 @@ import os
 from typing import List, Dict, Optional
 from openai import OpenAI
 import re
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,28 +32,31 @@ class ContentAnalyzer:
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
-            raise ValueError("OpenAI API key required")
+            raise ValueError("openai api key required. please set OPENAI_API_KEY in .env")
         
+        # initialize openai client
         self.client = OpenAI(api_key=self.api_key)
+        # set target segments and segment duration
         self.target_segments = target_segments
         self.segment_duration = segment_duration
+        # set openai model
         self.model = "gpt-4o"
+        
+        # initialize jinja2 environment for prompt templates
+        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(prompts_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
     
     def analyze_content(self, pdf_content: Dict, images_metadata: Optional[List[Dict]] = None) -> Dict:
-        """
-        analyze pdf content and create video segments.
-        args:
-            pdf_content: structured pdf content from pdf_parser
-            images_metadata: list of labeled images from image_labeler
-        returns:
-            dictionary with video segments and metadata
-        """
+        """analyze pdf content and create video segments."""
         logger.info("starting content analysis")
         
-        # step 1: create video outline
+        # create video outline
         outline = self._create_video_outline(pdf_content)
         
-        # step 2: match images to segments
+        # match images to segments
         if images_metadata:
             outline = self._match_images_to_segments(outline, images_metadata)
         
@@ -72,12 +77,16 @@ class ContentAnalyzer:
         throws:
             exception on openai API error.
         """
+        # load system prompt from template
+        system_template = self.jinja_env.get_template('outline_system.j2')
+        system_prompt = system_template.render()
+        
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert at creating engaging explainer video outlines from documents. You break complex content into clear, digestible segments."
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
@@ -90,16 +99,11 @@ class ContentAnalyzer:
         return response.choices[0].message.content
     
     def _create_video_outline(self, pdf_content: Dict) -> Dict:
-        """
-        create structured video outline from pdf content.
-        args:
-            pdf_content: structured pdf content
-        returns:
-            video outline with segments
-        """
-        logger.info("creating video outline with AI")
+        """create structured video outline from pdf content."""
+        logger.info("creating video outline with ai model")
         
-        # prepare content summary for AI
+        # prepare content summary for ai model
+        # TODO: passing the whole pdf may cause the context window to be too large, we need to think of a way to intelligently split the content
         sections_summary = []
         for section in pdf_content.get('sections', []):
             sections_summary.append({
@@ -107,6 +111,7 @@ class ContentAnalyzer:
                 'content_preview': section['content'][:500]
             })
         
+        # create outline prompt
         prompt = self._create_outline_prompt(
             pdf_content.get('title', 'Untitled'),
             sections_summary,
@@ -128,42 +133,29 @@ class ContentAnalyzer:
     
     def _create_outline_prompt(self, title: str, sections: List[Dict], 
                                target_segments: int, duration: int) -> str:
-        """create prompt for video outline generation."""
+        """create prompt for video outline generation.
+        args:
+            title: title of the document
+            sections: list of sections
+            target_segments: target number of video segments
+            duration: target duration per segment in seconds
+        returns:
+            prompt for video outline generation
+        """
         
         sections_text = "\n\n".join([
             f"Section: {s['title']}\n{s['content_preview']}"
-            for s in sections[:10]  # Limit to first 10 sections
+            for s in sections[:10]  # limit to first 10 sections to avoid context window issues
         ])
         
-        prompt = f"""Create an explainer video outline for the document: "{title}"
-
-Target: {target_segments} video segments, each approximately {duration} seconds long.
-
-Document sections:
-{sections_text}
-
-Create a structured video outline with the following format:
-
-SEGMENT 1: [Catchy title]
-PURPOSE: [What this segment explains]
-KEY_POINTS:
-- [Point 1]
-- [Point 2]
-- [Point 3]
-VISUAL_KEYWORDS: [3-5 keywords for visuals/stock images]
-DURATION: [estimated seconds]
-
-SEGMENT 2: [Title]
-...
-
-Guidelines:
-1. Start with an engaging introduction
-2. Build logically from basics to advanced concepts
-3. End with a summary or call-to-action
-4. Each segment should be self-contained but flow naturally
-5. Identify visual keywords that would make good images/graphics
-6. Keep each segment focused on one main idea
-"""
+        # load and render template
+        template = self.jinja_env.get_template('outline_prompt.j2')
+        prompt = template.render(
+            title=title,
+            target_segments=target_segments,
+            duration=duration,
+            sections_text=sections_text
+        )
         
         return prompt
     

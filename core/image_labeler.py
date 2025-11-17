@@ -9,6 +9,8 @@ import base64
 import json
 from typing import List, Dict, Optional
 from openai import OpenAI
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,6 +31,13 @@ class ImageLabeler:
         
         self.client = OpenAI(api_key=self.api_key)
         self.model = "gpt-4o"  # gpt-4 with vision
+        
+        # initialize jinja2 environment for prompt templates
+        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(prompts_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
 
     def label_image(self, image_path: str, text_context: str = "") -> Dict[str, str]:
         """
@@ -162,27 +171,11 @@ class ImageLabeler:
         returns:
             prompt string
         """
-        base_prompt = """Analyze this image from a PDF document and provide:
-
-1. LABEL: A concise 2-5 word label/title for the image
-2. DESCRIPTION: A clear 1-2 sentence description of what the image shows
-3. TYPE: The type of image (photo, diagram, chart, graph, illustration, screenshot, etc.)
-4. KEY_ELEMENTS: List 3-5 key visual elements or concepts shown
-5. RELEVANCE: How relevant is this image to creating an explainer video (high/medium/low)
-
-Format your response as:
-LABEL: [label here]
-DESCRIPTION: [description here]
-TYPE: [type here]
-KEY_ELEMENTS: [element 1], [element 2], [element 3]
-RELEVANCE: [relevance here]
-"""
+        # load and render template
+        template = self.jinja_env.get_template('image_labeling_prompt.j2')
+        prompt = template.render(text_context=text_context)
         
-        if text_context:
-            context_preview = text_context[:200]
-            base_prompt += f"\n\nContext from PDF near this image:\n{context_preview}"
-        
-        return base_prompt
+        return prompt
 
     def _parse_vision_response(self, response_text: str) -> Dict[str, str]:
         """

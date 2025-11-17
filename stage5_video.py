@@ -67,6 +67,7 @@ import sys
 import os
 import json
 from pathlib import Path
+import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -202,47 +203,44 @@ def test_video_generation(pdf_path: str, style: str, use_cached: bool = False, o
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python test_stage5_video.py <pdf_file> --style <style> [options]")
-        print("\nRequired:")
-        print("  --style STYLE    Video style: slideshow, animated, ai_generated, combined")
-        print("\nOptions:")
-        print("  --use-cached     Use previously generated script and audio")
-        print("  --output PATH    Custom output path")
-        print("\nExamples:")
-        print("  python test_stage5_video.py document.pdf --style slideshow")
-        print("  python test_stage5_video.py document.pdf --style animated --use-cached")
-        print("  python test_stage5_video.py document.pdf --style combined --output video.mp4")
+    parser = argparse.ArgumentParser(
+        description="STAGE 5: VIDEO GENERATION - Generate a video from a PDF using various styles."
+    )
+    parser.add_argument(
+        "pdf_file",
+        metavar="pdf_file",
+        type=str,
+        help="Path to the PDF file."
+    )
+    parser.add_argument(
+        "--style",
+        required=True,
+        choices=["slideshow", "animated", "ai_generated", "combined"],
+        help="Video style to use. Choices: slideshow, animated, ai_generated, combined."
+    )
+    parser.add_argument(
+        "--use-cached",
+        action="store_true",
+        help="Use previously generated script and audio."
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Custom output path for the generated video."
+    )
+
+    if len(sys.argv) == 1:
+        parser.print_help()
         sys.exit(1)
-    
-    pdf_path = sys.argv[1]
-    
-    # Get style
-    if '--style' not in sys.argv:
-        print("❌ Error: --style option is required")
-        print("\nAvailable styles: slideshow, animated, ai_generated, combined")
-        sys.exit(1)
-    
-    style_idx = sys.argv.index('--style')
-    if style_idx + 1 >= len(sys.argv):
-        print("❌ Error: --style requires a value")
-        sys.exit(1)
-    
-    style = sys.argv[style_idx + 1]
-    
-    if style not in ['slideshow', 'animated', 'ai_generated', 'combined']:
-        print(f"❌ Error: Invalid style '{style}'")
-        print("Available styles: slideshow, animated, ai_generated, combined")
-        sys.exit(1)
-    
-    use_cached = '--use-cached' in sys.argv
-    
-    output_path = None
-    if '--output' in sys.argv:
-        output_idx = sys.argv.index('--output')
-        if output_idx + 1 < len(sys.argv):
-            output_path = sys.argv[output_idx + 1]
-    
+
+    args = parser.parse_args()
+
+    pdf_path = args.pdf_file
+    style = args.style
+    use_cached = args.use_cached
+    output_path = args.output
+
     success = test_video_generation(pdf_path, style, use_cached, output_path)
     sys.exit(0 if success else 1)
 

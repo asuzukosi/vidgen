@@ -32,6 +32,7 @@ from moviepy.editor import (
 from moviepy.video.fx.fadein import fadein
 from moviepy.video.fx.fadeout import fadeout
 from openai import OpenAI
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from core.video_utils import VideoUtils
 from core.logger import get_logger
@@ -73,6 +74,13 @@ class AIGeneratedGenerator:
             'ai_generated_images'
         )
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # initialize jinja2 environment for prompt templates
+        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(prompts_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
         
         logger.info(f"initialized aigeneratedgenerator: {self.width}x{self.height} @ {self.fps}fps")
     
@@ -187,32 +195,11 @@ class AIGeneratedGenerator:
         returns:
             image generation prompt
         """
-        # extract key information
-        title = segment['title']
-        purpose = segment.get('purpose', '')
-        visual_keywords = segment.get('visual_keywords', [])
+        # load and render template
+        template = self.jinja_env.get_template('image_generation_prompt.j2')
+        prompt = template.render(segment=segment)
         
-        # build prompt
-        prompt_parts = [
-            "Create a professional, modern illustration for an educational video.",
-            f"Topic: {title}",
-        ]
-        
-        if purpose:
-            prompt_parts.append(f"Purpose: {purpose}")
-        
-        if visual_keywords:
-            keywords_str = ', '.join(visual_keywords[:3])
-            prompt_parts.append(f"Visual elements: {keywords_str}")
-        
-        prompt_parts.extend([
-            "Style: Clean, minimalist, professional",
-            "Colors: Blue, white, with accent colors",
-            "No text in the image",
-            "High quality, suitable for HD video"
-        ])
-        
-        return ' '.join(prompt_parts)
+        return prompt
     
     def _generate_image_with_dalle(self, prompt: str, output_path: str) -> Optional[str]:
         """

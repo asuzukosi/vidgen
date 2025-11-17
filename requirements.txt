@@ -1,6 +1,7 @@
 # core dependencies
 python-dotenv
 pyyaml
+jinja2
 
 # pdf processing
 pdfplumber==0.10.3

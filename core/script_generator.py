@@ -9,6 +9,8 @@ import os
 import json
 from typing import List, Dict, Optional
 from openai import OpenAI
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,6 +31,13 @@ class ScriptGenerator:
         
         self.client = OpenAI(api_key=self.api_key)
         self.model = "gpt-4o"
+        
+        # initialize jinja2 environment for prompt templates
+        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(prompts_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
     
     def generate_script(self, video_outline: Dict) -> Dict:
         """
@@ -88,12 +97,16 @@ class ScriptGenerator:
         prompt = self._create_script_prompt(segment, segment_num, total_segments, video_title)
         
         try:
+            # load system prompt from template
+            system_template = self.jinja_env.get_template('script_system.j2')
+            system_prompt = system_template.render()
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert scriptwriter for educational explainer videos. You write clear, engaging, and conversational narration that's easy to understand and remember."
+                        "content": system_prompt
                     },
                     {
                         "role": "user",
@@ -126,26 +139,17 @@ class ScriptGenerator:
         
         key_points_text = "\n".join([f"- {point}" for point in segment.get('key_points', [])])
         
-        prompt = f"""Write a {segment['duration']}-second voiceover script for an explainer video segment.
-
-Video Title: {video_title}
-Segment {segment_num}/{total_segments}: {segment['title']}
-Purpose: {segment.get('purpose', 'Explain this topic')}
-
-Key Points to Cover:
-{key_points_text if key_points_text else '- ' + segment.get('purpose', 'Main concept')}
-
-Guidelines:
-1. Write in a conversational, friendly tone
-2. Aim for approximately {segment['duration'] * 2.5:.0f} words (based on ~150 words/minute speaking rate)
-3. Start naturally - {"introduce the topic" if is_intro else "continue from the previous segment"}
-4. {"End with an engaging hook" if not is_conclusion else "End with a strong conclusion or call-to-action"}
-5. Use simple, clear language
-6. Make it engaging and memorable
-7. Don't use stage directions or descriptions - only the words to be spoken
-8. Don't number points or use bullet formatting
-
-Write the script now:"""
+        # load and render template
+        template = self.jinja_env.get_template('script_prompt.j2')
+        prompt = template.render(
+            segment=segment,
+            segment_num=segment_num,
+            total_segments=total_segments,
+            video_title=video_title,
+            key_points_text=key_points_text,
+            is_intro=is_intro,
+            is_conclusion=is_conclusion
+        )
         
         return prompt
     
