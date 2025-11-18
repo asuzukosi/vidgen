@@ -2,6 +2,7 @@
 python-dotenv
 pyyaml
 jinja2
+pydantic
 
 # pdf processing
 pdfplumber==0.10.3
