@@ -11,7 +11,7 @@ from typing import List, Dict, Optional
 from openai import OpenAI
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
-from core.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -19,11 +19,12 @@ logger = get_logger(__name__)
 class ImageLabeler:
     """label and describe images using ai vision models."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, prompts_dir: Optional[Path] = None):
         """
         initialize image labeler.
         args:
             api_key: openai api key (defaults to environment variable)
+            prompts_dir: path to prompts directory (from config)
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
@@ -33,7 +34,11 @@ class ImageLabeler:
         self.model = "gpt-4o"  # gpt-4 with vision
         
         # initialize jinja2 environment for prompt templates
-        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        if prompts_dir is None:
+            from utils.config_loader import get_config
+            config = get_config()
+            prompts_dir = config.get_prompts_directory()
+        
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(prompts_dir)),
             autoescape=select_autoescape(['html', 'xml'])
@@ -172,7 +177,7 @@ class ImageLabeler:
             prompt string
         """
         # load and render template
-        template = self.jinja_env.get_template('image_labeling_prompt.j2')
+        template = self.jinja_env.get_template('image_labeling_instruction.j2')
         prompt = template.render(text_context=text_context)
         
         return prompt

@@ -57,11 +57,11 @@ class ProgressScreen(Screen):
     progress_value = reactive(0.0)
     
     def compose(self) -> ComposeResult:
-        """Create child widgets."""
+        """create child widgets."""
         yield Header()
         
         with Container(id="progress-container"):
-            yield Static("🎬 Video Generation in Progress", classes="progress-title")
+            yield Static("Video Generation in Progress", classes="progress-title")
             yield Static("", id="phase-text", classes="phase-text")
             yield ProgressBar(total=100, show_eta=True, id="progress-bar")
             yield RichLog(id="progress-log", wrap=True, highlight=True, markup=True)
@@ -70,24 +70,24 @@ class ProgressScreen(Screen):
         yield Footer()
     
     def on_mount(self) -> None:
-        """Initialize progress screen."""
+        """initialize progress screen."""
         self.update_phase("Initializing...")
         self.log("Starting video generation process...", "cyan")
     
     def update_phase(self, phase: str) -> None:
-        """Update the current phase."""
+        """update the current phase."""
         self.current_phase = phase
         phase_text = self.query_one("#phase-text", Static)
         phase_text.update(f"[bold cyan]{phase}[/bold cyan]")
     
     def update_progress(self, value: float) -> None:
-        """Update progress bar."""
+        """update progress bar."""
         self.progress_value = value
         progress_bar = self.query_one("#progress-bar", ProgressBar)
         progress_bar.update(progress=value)
     
     def log(self, message: str, style: str = "") -> None:
-        """Add a log message."""
+        """add a log message."""
         log_viewer = self.query_one("#progress-log", RichLog)
         if style:
             log_viewer.write(f"[{style}]{message}[/{style}]")
@@ -96,7 +96,7 @@ class ProgressScreen(Screen):
     
     @on(Button.Pressed, "#cancel-btn")
     def cancel_generation(self) -> None:
-        """Cancel video generation."""
+        """cancel video generation."""
         self.log("Cancelling generation...", "red")
         # TODO: Implement cancellation logic
         self.app.pop_screen()

@@ -2,6 +2,7 @@
 log viewer widget - displays real-time logs
 """
 
+from typing import Any
 from textual.widgets import RichLog
 from textual.reactive import reactive
 
@@ -11,11 +12,11 @@ class LogViewer(RichLog):
     
     max_lines = reactive(1000)
     
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self.can_focus = True
     
-    def on_mount(self):
+    def on_mount(self) -> None:
         """configure the log viewer when mounted."""
         self.border_title = "Logs"
         self.max_lines = 1000

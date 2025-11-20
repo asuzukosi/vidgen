@@ -1,0 +1,392 @@
+"""
+vidgen unified video generator
+creates presentation-style explainer videos with:
+- slide backgrounds (gradient, solid, or images)
+- text overlays synchronized with voiceover
+- image displays (PDF and stock images from content analysis)
+- smooth transitions between segments
+- title and end cards
+"""
+
+import os
+from typing import Dict, Optional
+import numpy as np
+
+# pillow 10.0.0+ compatibility fix for moviepy
+from PIL import Image
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.LANCZOS
+
+from moviepy.editor import (
+    VideoClip, ImageClip, AudioFileClip,
+    concatenate_videoclips
+)
+from moviepy.video.fx.fadein import fadein
+from moviepy.video.fx.fadeout import fadeout
+
+from utils.video_utils import VideoUtils
+from utils.font_loader import FontLoader
+from utils.logger import get_logger
+from utils.config_loader import Config
+
+logger = get_logger(__name__)
+
+
+class VideoGenerator:
+    """unified video generator based on slideshow style."""
+    
+    def __init__(self, config: Config):
+        """
+        initialize video generator.
+        args:
+            config: configuration object
+        """
+        self.config = config
+        resolution = config.get('video.resolution', [1920, 1080])
+        self.width = resolution[0]
+        self.height = resolution[1]
+        self.fps = config.get('video.fps', 30)
+        
+        self.transition_duration = config.get('styles.slideshow.transition_duration', 0.5)
+        self.background_type = config.get('styles.slideshow.background_type', 'gradient')
+        self.enable_animations = config.get('styles.slideshow.enable_animations', False)
+        
+        # initialize font loader
+        self.font_loader = FontLoader(config)
+        VideoUtils.set_font_loader(self.font_loader)
+        
+        # video title will be set when generate_video is called
+        self.video_title = "Untitled"
+        
+        logger.info(f"Initialized VideoGenerator: {self.width}x{self.height} @ {self.fps}fps")
+        
+        # log available fonts
+        available_fonts = self.font_loader.list_available_fonts()
+        if available_fonts:
+            logger.info(f"Available fonts: {', '.join(available_fonts)}")
+    
+    def generate_video(self, script_with_audio: Dict, output_path: str) -> str:
+        """
+        generate video from script and audio data.
+        args:
+            script_with_audio: script data with audio files
+            output_path: path to save output video
+        returns:
+            path to generated video
+        """
+        logger.info("starting video generation")
+        clips = []
+        
+        # store video title for use in all segments
+        self.video_title = script_with_audio.get('title', 'Untitled')
+        
+        # create title card
+        title_clip = self._create_title_card(self.video_title)
+        clips.append(title_clip)
+        
+        # create clips for each segment
+        for i, segment in enumerate(script_with_audio['segments'], 1):
+            logger.info(f"creating slide {i}/{len(script_with_audio['segments'])}: {segment['title']}")
+            
+            segment_clip = self._create_segment_clip(segment, i)
+            if segment_clip is not None:
+                clips.append(segment_clip)
+        
+        # create end card
+        end_clip = self._create_end_card()
+        clips.append(end_clip)
+        
+        # concatenate all clips
+        logger.info("concatenating video clips...")
+        final_video = concatenate_videoclips(clips, method='compose')
+        
+        # Note: Audio is already added per-segment in _create_segment_clip
+        # Full audio track is optional and would need pipeline_id to locate
+        # For now, we rely on per-segment audio which is already set
+        
+        # write video file
+        logger.info(f"Writing video to {output_path}...")
+        final_video.write_videofile(
+            output_path,
+            fps=self.fps,
+            codec=self.config.get('output.codec', 'libx264'),
+            audio_codec=self.config.get('output.audio_codec', 'aac'),
+            temp_audiofile='temp_audio.m4a',
+            remove_temp=True,
+            logger=None  # Suppress moviepy's verbose output
+        )
+        
+        logger.info(f"✓ Video generated successfully: {output_path}")
+        return output_path
+    
+    def _create_title_card(self, title: str, duration: float = 3.0) -> VideoClip:
+        """
+        create title card clip.
+        args:
+            title: video title
+            duration: duration in seconds
+        returns:
+            video clip for title card
+        """
+        logger.info("Creating title card...")
+        
+        title_card = VideoUtils.create_title_card(
+            self.width,
+            self.height,
+            title,
+            subtitle="AI-Generated Explainer Video"
+        )
+        
+        clip = ImageClip(title_card).set_duration(duration)
+        clip = clip.fx(fadein, 0.5).fx(fadeout, 0.5)
+        
+        return clip
+    
+    def _create_end_card(self, duration: float = 3.0) -> VideoClip:
+        """
+        create end card clip.
+        args:
+            duration: duration in seconds
+        returns:
+            video clip for end card
+        """
+        logger.info("Creating end card...")
+        
+        end_card = VideoUtils.create_end_card(
+            self.width,
+            self.height,
+            message="Thank you for watching!",
+            credits=[
+                "Created with PDF to Video Generator",
+                "Powered by AI"
+            ]
+        )
+        
+        clip = ImageClip(end_card).set_duration(duration)
+        clip = clip.fx(fadein, 0.5).fx(fadeout, 0.5)
+        
+        return clip
+    
+    def _create_segment_clip(self, segment: Dict, segment_number: int) -> Optional[VideoClip]:
+        """
+        create video clip for a segment.
+        args:
+            segment: segment data dictionary
+            segment_number: segment number
+        returns:
+            video clip for segment or None if failed
+        """
+        try:
+            # get duration from audio or estimate
+            duration = segment.get('audio_duration', segment.get('duration', 45))
+            
+            # create background
+            background = self._create_background(segment)
+            
+            # add image if available (from image field or legacy fields)
+            image_path = self._get_image_path(segment)
+            if image_path and os.path.exists(image_path):
+                background = self._add_image_to_slide(background, image_path)
+            
+            # add text overlay
+            background = self._add_text_overlay(background, segment)
+            
+            # create clip
+            clip = ImageClip(background).set_duration(duration)
+            
+            # add audio if available
+            audio_file = segment.get('audio_file')
+            if audio_file and os.path.exists(audio_file):
+                audio = AudioFileClip(audio_file)
+                clip = clip.set_audio(audio)
+                # ensure video duration matches audio
+                clip = clip.set_duration(audio.duration)
+            
+            # add transitions
+            clip = clip.fx(fadein, self.transition_duration)
+            clip = clip.fx(fadeout, self.transition_duration)
+            
+            return clip
+            
+        except Exception as e:
+            logger.error(f"Error creating segment clip {segment_number}: {str(e)}", exc_info=True)
+            return None
+    
+    def _get_image_path(self, segment: Dict) -> Optional[str]:
+        """
+        get image path from segment.
+        prioritizes: image field > pdf_images > stock_image (legacy support).
+        args:
+            segment: segment data
+        returns:
+            path to image or None
+        """
+        # check new image field from content analyzer
+        if segment.get('image'):
+            img = segment['image']
+            if img.get('source') == 'pdf' and img.get('path'):
+                return img['path']
+            elif img.get('source') == 'stock' and segment.get('stock_image'):
+                # stock image should have been fetched
+                return segment['stock_image'].get('filepath')
+            elif img.get('source') == 'ai_generated' and img.get('path'):
+                # ai-generated image path
+                return img['path']
+            elif img.get('source') == 'ai_generated' and segment.get('ai_generated_image'):
+                # fallback to ai_generated_image metadata
+                return segment['ai_generated_image'].get('filepath')
+        
+        # legacy support: check pdf_images and stock_image directly
+        if segment.get('pdf_images') and len(segment['pdf_images']) > 0:
+            img_data = segment['pdf_images'][0]
+            if isinstance(img_data, dict):
+                return img_data.get('filepath')
+            elif isinstance(img_data, str):
+                return img_data
+        
+        if segment.get('stock_image'):
+            stock_img = segment['stock_image']
+            if isinstance(stock_img, dict):
+                return stock_img.get('filepath')
+        
+        return None
+    
+    def _create_background(self, segment: Dict) -> np.ndarray:
+        """
+        create background for slide.
+        args:
+            segment: segment data
+        returns:
+            background as numpy array
+        """
+        if self.background_type == 'gradient':
+            # use different pastel gradient colors for variety
+            colors = [
+                ((200, 220, 240), (230, 240, 250)),   # Pastel Blue - soft sky to light blue
+                ((220, 210, 240), (240, 235, 250)),   # Pastel Lavender - soft purple tones
+                ((200, 240, 230), (230, 250, 245)),   # Pastel Mint - soft green/mint
+                ((255, 220, 210), (255, 240, 235)),   # Pastel Peach - soft pink/peach
+                ((240, 200, 220), (250, 230, 240)),   # Pastel Rose - soft pink/rose
+                ((200, 235, 245), (230, 245, 255)),   # Pastel Aqua - soft aqua/cyan
+                ((245, 230, 200), (255, 245, 230)),   # Pastel Cream - soft cream/beige
+                ((220, 230, 240), (240, 245, 250)),   # Pastel Gray-Blue - soft gray-blue
+            ]
+            color_pair = colors[hash(segment['title']) % len(colors)]
+            return VideoUtils.create_gradient_background(
+                self.width, self.height,
+                color_pair[0], color_pair[1]
+            )
+        else:
+            # solid color
+            return VideoUtils.create_solid_background(
+                self.width, self.height,
+                color=(45, 45, 45)
+            )
+    
+    def _add_image_to_slide(self, background: np.ndarray, image_path: str) -> np.ndarray:
+        """
+        add image to slide background.
+        image takes up 40% of horizontal space on the right side.
+        args:
+            background: background numpy array
+            image_path: path to image file
+        returns:
+            background with image composited
+        """
+        if image_path and os.path.exists(image_path):
+            try:
+                # composite image on right side, taking 40% of width
+                background = VideoUtils.composite_image_on_background(
+                    background,
+                    image_path,
+                    position='right',
+                    width_percent=0.4
+                )
+            except Exception as e:
+                logger.warning(f"Could not add image {image_path}: {str(e)}")
+        
+        return background
+    
+    def _add_text_overlay(self, background: np.ndarray, segment: Dict) -> np.ndarray:
+        """
+        add text overlay to slide.
+        video title is fixed at top, segment title below it, then bullet points.
+        args:
+            background: background with possible image
+            segment: segment data
+            segment_number: segment number
+        returns:
+            background with text overlay
+        """
+        img = Image.fromarray(background)
+        
+        # check if image exists to determine text area width
+        image_path = self._get_image_path(segment)
+        has_image = image_path and os.path.exists(image_path)
+        
+        # calculate text area width (60% if image exists, full width otherwise)
+        text_area_width = int(self.width * 0.6) if has_image else self.width - 200
+        text_start_x = 100
+        
+        # fixed video title at top (all segments)
+        # use darker color for better contrast on pastel backgrounds
+        video_title_y = 50
+        img = VideoUtils.add_text_to_image(
+            img,
+            self.video_title,
+            position=(text_start_x, video_title_y),
+            font_size=50,
+            color=(60, 60, 80),  # dark gray-blue for contrast on pastel
+            max_width=text_area_width,
+            font_type='title'
+        )
+        
+        # segment title below video title (no segment number prefix)
+        segment_title_y = 130
+        img = VideoUtils.add_text_to_image(
+            img,
+            segment['title'],
+            position=(text_start_x, segment_title_y),
+            font_size=60,
+            color=(50, 50, 70),  # darker for better contrast
+            max_width=text_area_width,
+            font_type='title'
+        )
+        
+        # add key points (first 3) with better spacing
+        key_points = segment.get('key_points', [])[:3]
+        if key_points:
+            y_pos = 220
+            line_spacing = 80  # increased spacing between bullet points
+            
+            for point in key_points:
+                # add bullet point with proper alignment
+                point_text = f"• {point}"
+                img = VideoUtils.add_text_to_image(
+                    img,
+                    point_text,
+                    position=(text_start_x + 20, y_pos),  # indented for bullet
+                    font_size=42,
+                    color=(70, 70, 90),  # dark gray for readability on pastel
+                    max_width=text_area_width - 40,  # account for indentation
+                    font_type='body'
+                )
+                y_pos += line_spacing
+        
+        return np.array(img)
+
+
+def generate_video(script_with_audio: Dict, config: Config, output_path: str) -> str:
+    """
+    convenience function to generate video.
+    
+    args:
+        script_with_audio: script data with audio
+        config: configuration object
+        output_path: output video path
+    returns:
+        path to generated video
+    """
+    generator = VideoGenerator(config)
+    return generator.generate_video(script_with_audio, output_path)
+

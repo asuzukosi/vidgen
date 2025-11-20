@@ -4,6 +4,7 @@ file browser screen - for selecting pdf files
 
 import os
 from pathlib import Path
+from typing import Optional
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.containers import Container, Vertical, Horizontal
@@ -12,10 +13,10 @@ from textual import on
 
 
 class PDFDirectoryTree(DirectoryTree):
-    """Custom directory tree that highlights PDF files."""
+    """custom directory tree that highlights pdf files."""
     
     def filter_paths(self, paths):
-        """Filter to show directories and PDF files only."""
+        """filter to show directories and pdf files only."""
         return [
             path for path in paths
             if path.is_dir() or path.suffix.lower() == '.pdf'
@@ -23,7 +24,7 @@ class PDFDirectoryTree(DirectoryTree):
 
 
 class FileBrowserScreen(Screen):
-    """Screen for browsing and selecting PDF files."""
+    """screen for browsing and selecting pdf files."""
     
     CSS = """
     FileBrowserScreen {
@@ -66,10 +67,10 @@ class FileBrowserScreen(Screen):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.selected_file = None
+        self.selected_file: Optional[str] = None
     
     def compose(self) -> ComposeResult:
-        """Create child widgets."""
+        """create child widgets."""
         yield Header()
         
         with Container(id="browser-container"):
@@ -91,7 +92,7 @@ class FileBrowserScreen(Screen):
     
     @on(DirectoryTree.FileSelected)
     def file_selected(self, event: DirectoryTree.FileSelected) -> None:
-        """Handle file selection."""
+        """handle file selection."""
         path = event.path
         if path.suffix.lower() == '.pdf':
             self.selected_file = str(path)
@@ -100,7 +101,7 @@ class FileBrowserScreen(Screen):
     
     @on(Button.Pressed, "#select-btn")
     def select_file(self) -> None:
-        """Confirm file selection."""
+        """confirm file selection."""
         if self.selected_file:
             self.dismiss(self.selected_file)
         else:
@@ -109,6 +110,6 @@ class FileBrowserScreen(Screen):
     
     @on(Button.Pressed, "#cancel-btn")
     def cancel_selection(self) -> None:
-        """Cancel file selection."""
+        """cancel file selection."""
         self.dismiss(None)
 

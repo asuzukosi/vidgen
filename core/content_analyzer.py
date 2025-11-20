@@ -12,22 +12,23 @@ from openai import OpenAI
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
 from pydantic import BaseModel
-from core.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class SegmentImage(BaseModel):
     """Pydantic model for segment image."""
-    source: str  # "pdf" or "stock"
-    query: Optional[str] = None  # search keyword if stock
-    path: Optional[str] = None  # path to pdf image if pdf
+    source: str  # "pdf", "stock", or "ai_generated"
+    query: Optional[str] = None  # search keyword if stock, or prompt if ai_generated
+    path: Optional[str] = None  # path to pdf image if pdf, or path to generated image if ai_generated
 
 
 class VideoSegment(BaseModel):
     """Pydantic model for a video segment."""
     title: str
     purpose: str
+    content: str
     key_points: List[str]
     visual_keywords: List[str]
     duration: int
@@ -46,13 +47,14 @@ class ContentAnalyzer:
     """analyze and structure pdf content for video creation."""
     
     def __init__(self, api_key: Optional[str] = None, target_segments: int = 7, 
-                 segment_duration: int = 45):
+                 segment_duration: int = 45, prompts_dir: Optional[Path] = None):
         """
         initialize content analyzer.
         args:
             api_key: openai api key
             target_segments: target number of video segments
             segment_duration: target duration per segment in seconds
+            prompts_dir: path to prompts directory (from config)
         """
         self.api_key = api_key
         # initialize openai client
@@ -63,8 +65,13 @@ class ContentAnalyzer:
         # set openai model
         self.model = "gpt-4o-2024-08-06"
         
-        # initialize jinja2 environment for prompt templates
-        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        # Initialize jinja2 environment for prompt templates
+        if prompts_dir is None:
+            from utils.config_loader import get_config
+            config = get_config()
+            prompts_dir = config.get_prompts_directory()
+        
+        self.prompts_dir = prompts_dir
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(prompts_dir)),
             autoescape=select_autoescape(['html', 'xml'])
@@ -220,7 +227,7 @@ class ContentAnalyzer:
             images_text = "\n\n".join(images_list)
         
         # load and render template
-        template = self.jinja_env.get_template('outline_prompt.j2')
+        template = self.jinja_env.get_template('outline_instruction.j2')
         prompt = template.render(
             title=title,
             target_segments=target_segments,
@@ -270,20 +277,6 @@ class ContentAnalyzer:
         
         logger.info(f"saved outline to {output_path}")
 
-
-def analyze_pdf_content(pdf_content: Dict, images_metadata: Optional[List[Dict]] = None,
-                       api_key: Optional[str] = None) -> Dict:
-    """
-    convenience function to analyze pdf content.
-    args:
-        pdf_content: structured pdf content
-        images_metadata: labeled images
-        api_key: openai api key (optional)
-    returns:
-        video outline
-    """
-    analyzer = ContentAnalyzer(api_key)
-    return analyzer.analyze_content(pdf_content, images_metadata)
 
 
 

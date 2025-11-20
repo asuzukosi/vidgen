@@ -8,7 +8,7 @@ import os
 import json
 from typing import Dict, Optional, Tuple
 from pathlib import Path
-from core.logger import get_logger
+from utils.logger import get_logger
 from pydub import AudioSegment
 
 

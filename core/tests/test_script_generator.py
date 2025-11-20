@@ -25,9 +25,11 @@ class TestScriptGenerator:
         return mock_client
     
     @pytest.fixture
-    def generator(self, mock_openai_client):
+    def generator(self, mock_openai_client, tmp_path):
         """Create a ScriptGenerator instance with mocked client."""
-        generator = ScriptGenerator('test_api_key')
+        prompts_dir = tmp_path / 'prompts'
+        prompts_dir.mkdir()
+        generator = ScriptGenerator('test_api_key', prompts_dir=prompts_dir)
         generator.client = mock_openai_client
         return generator
     
@@ -52,9 +54,11 @@ class TestScriptGenerator:
             ]
         }
     
-    def test_initialization(self):
+    def test_initialization(self, tmp_path):
         """Test ScriptGenerator initialization."""
-        generator = ScriptGenerator('test_key')
+        prompts_dir = tmp_path / 'prompts'
+        prompts_dir.mkdir()
+        generator = ScriptGenerator('test_key', prompts_dir=prompts_dir)
         assert generator.api_key == 'test_key'
         assert generator.model == 'gpt-4o'
     

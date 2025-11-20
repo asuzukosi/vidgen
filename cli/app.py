@@ -6,6 +6,7 @@ terminal user interface for pdf to video generation
 import sys
 import os
 from pathlib import Path
+from typing import Optional
 
 # add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,7 +19,7 @@ from cli.screens.progress_screen import ProgressScreen
 from cli.screens.file_browser import FileBrowserScreen
 
 # set up logging
-from core.logger import setup_logging, get_logger
+from utils.logger import setup_logging, get_logger
 setup_logging(log_dir='temp/vidgen')
 logger = get_logger(__name__)
 
@@ -48,21 +49,21 @@ class VidGenApp(App):
     }
     
     def on_mount(self) -> None:
-        """Initialize the application."""
+        """initialize the application."""
         logger.info("VidGen TUI started")
         self.push_screen("main")
     
     def action_toggle_dark(self) -> None:
-        """Toggle dark mode."""
+        """toggle dark mode."""
         self.dark = not self.dark
     
     def action_help(self) -> None:
-        """Show help screen."""
+        """show help screen."""
         # TODO: Implement help screen
         pass
     
-    def on_file_browser_screen_dismissed(self, result) -> None:
-        """Handle file browser result."""
+    def on_file_browser_screen_dismissed(self, result: Optional[str]) -> None:
+        """handle file browser result."""
         if result:
             # Update the PDF input field on main screen
             main_screen = self.query_one(MainScreen)
@@ -72,7 +73,7 @@ class VidGenApp(App):
 
 
 def main():
-    """Main entry point for the CLI application."""
+    """main entry point for the cli application."""
     app = VidGenApp()
     app.run()
 

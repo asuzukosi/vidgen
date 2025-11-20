@@ -19,8 +19,13 @@ voiceover:
 images:
   extract_from_pdf: true
   use_stock_images: true
+  use_ai_generated: false  # enable ai-generated images using dall-e
   max_stock_images_per_segment: 1
   preferred_stock_provider: "unsplash"  # unsplash or pexels
+  ai_generator:
+    model: "dall-e-3"  # dall-e-2 or dall-e-3
+    quality: "standard"  # standard or hd (dall-e-3 only)
+    size: "1024x1024"  # dall-e-3: "1024x1024", "1792x1024", "1024x1792"
   
 # style-specific settings
 styles:
@@ -43,6 +48,16 @@ styles:
   combined:
     use_ai_selection: true  # use gpt-4 to select styles, or rotate by default
     style_rotation: ["slideshow", "animated", "ai_generated"]  # fallback pattern
+
+# font settings
+# provide paths to font files - can be absolute paths, relative to fonts directory, 
+# relative to project root, or system font paths
+fonts:
+  title_font: null  # path to font file for titles (e.g., "/path/to/Roboto-Bold.ttf" or "fonts/Roboto-Bold.ttf")
+  body_font: null   # path to font file for body text (e.g., "/path/to/Roboto-Regular.ttf" or "fonts/Roboto-Regular.ttf")
+  subtitle_font: null  # path to font file for subtitles (e.g., "/path/to/Roboto-Light.ttf" or "fonts/Roboto-Light.ttf")
+  default_font: null  # path to default font file (e.g., "/path/to/font.ttf" or "fonts/font.ttf")
+  fonts_directory: "fonts"  # default directory to search for fonts (if relative path provided)
 
 # output settings
 output:

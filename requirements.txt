@@ -9,6 +9,9 @@ pdfplumber==0.10.3
 PyMuPDF==1.23.8
 pdf2image==1.16.3
 
+# html processing
+beautifulsoup4
+
 # ai apis 
 openai  
 elevenlabs

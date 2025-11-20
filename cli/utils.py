@@ -5,431 +5,305 @@ cli utilities - helper functions for the cli application
 import os
 import json
 from pathlib import Path
+from typing import Optional
 
-from core.logger import get_logger
-from core.pdf_parser import PDFParser
-from core.image_extractor import ImageExtractor
-from core.image_labeler import ImageLabeler
-from core.content_analyzer import ContentAnalyzer
-from core.stock_image_fetcher import StockImageFetcher
-from core.script_generator import ScriptGenerator
-from core.voiceover_generator import VoiceoverGenerator
-from styles.slideshow import generate_slideshow_video
-from styles.animated import generate_animated_video
-from styles.ai_generated import generate_ai_video
-from styles.combined import generate_combined_video
+from utils.logger import get_logger
+from utils.config_loader import Config
+from core.processors.pdf_processor import PDFProcessor
+from core.pipeline_data import PipelineData
 
 logger = get_logger(__name__)
 
 
-def test_phase1(pdf_path: str) -> bool:
+def parse_document(pdf_path: str, pipeline_data: Optional[PipelineData] = None) -> PipelineData:
     """
-    Test Phase 1: PDF Text Extraction
+    Parse document and extract structured content.
     
     Args:
         pdf_path: Path to PDF file
+        pipeline_data: Existing pipeline data (optional)
         
     Returns:
-        True if successful, False otherwise
+        PipelineData instance with parsed content
     """
-    logger.info("=== Phase 1: PDF Text Extraction Test ===")
+    logger.info("=== Parse Document ===")
+    
+    if pipeline_data is None:
+        pipeline_data = PipelineData()
+        pipeline_data.source_path = pdf_path
+        pipeline_data.source_type = 'pdf'
+    
+    pipeline_data.update_stage("document_processing", "in_progress")
     
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
-        return False
+        pipeline_data.update_stage("document_processing", "failed")
+        return pipeline_data
     
     try:
-        with PDFParser(pdf_path) as parser:
-            content = parser.extract_structured_content()
+        from utils.config_loader import get_config
+        config = get_config()
+        temp_dir = config.get('output.temp_directory', 'temp')
+        
+        with PDFProcessor(pdf_path) as processor:
+            content = processor.extract_structured_content()
+            pipeline_data.parsed_content = content
             
-            logger.info(f"\n{'='*60}")
             logger.info(f"PDF Title: {content['title']}")
             logger.info(f"Total Pages: {content['total_pages']}")
             logger.info(f"Sections Found: {len(content['sections'])}")
-            logger.info(f"{'='*60}\n")
             
-            for i, section in enumerate(content['sections'], 1):
-                logger.info(f"\nSection {i}: {section['title']}")
-                logger.info(f"Level: {section['level']}")
-                logger.info(f"Content Length: {len(section['content'])} characters")
-                
-                preview = section['content'][:150].replace('\n', ' ')
-                if len(section['content']) > 150:
-                    preview += "..."
-                logger.info(f"Preview: {preview}\n")
+            pipeline_data.update_stage("document_processing", "completed")
+            pipeline_data.save_to_folder(temp_dir)
             
-            logger.info("✓ Phase 1 Test Completed Successfully!")
-            return True
+            return pipeline_data
             
     except Exception as e:
-        logger.error(f"Error during Phase 1 test: {str(e)}", exc_info=True)
-        return False
+        logger.error(f"Error during document parsing: {str(e)}", exc_info=True)
+        pipeline_data.update_stage("document_processing", "failed")
+        return pipeline_data
 
 
-def test_phase2(pdf_path: str, config) -> bool:
+def extract_images(pdf_path: str, pipeline_data: Optional[PipelineData] = None) -> PipelineData:
     """
-    Test Phase 2: Image Extraction & AI Labeling
+    Extract images from document and label them with AI.
     
     Args:
         pdf_path: Path to PDF file
-        config: Configuration object
+        pipeline_data: Existing pipeline data (required - must have pipeline_id)
         
     Returns:
-        True if successful, False otherwise
+        PipelineData instance with extracted images
     """
-    logger.info("=== Phase 2: Image Extraction & AI Labeling Test ===")
+    logger.info("=== Extract Images ===")
     
-    if not os.path.exists(pdf_path):
-        logger.error(f"PDF file not found: {pdf_path}")
-        return False
+    if pipeline_data is None:
+        logger.error("Pipeline data is required. Run parse_document first.")
+        raise ValueError("Pipeline data is required for image extraction")
+    
+    from utils.config_loader import get_config
+    from pipeline.stage2_images import extract_images as stage2_extract_images
+    
+    config = get_config()
     
     if not config.openai_api_key:
-        logger.error("OpenAI API key not found. Phase 2 requires OPENAI_API_KEY.")
-        return False
+        logger.error("OpenAI API key not found. Image labeling requires OPENAI_API_KEY.")
+        pipeline_data.update_stage("image_processing", "failed")
+        return pipeline_data
     
     try:
-        logger.info("\n--- Step 1: Extracting Images ---")
-        extractor = ImageExtractor(pdf_path, config.get('output.temp_directory', 'temp') + '/images')
-        images_metadata = extractor.extract_images()
-        
-        if not images_metadata:
-            logger.warning("No images found in PDF")
-            return True
-        
-        stats = extractor.get_image_stats()
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Extracted {stats['total_images']} images")
-        logger.info(f"Pages with images: {stats['pages_with_images']}")
-        logger.info(f"{'='*60}\n")
-        
-        logger.info("\n--- Step 2: Labeling Images with AI ---")
-        labeler = ImageLabeler(config.openai_api_key)
-        labeled_metadata = labeler.label_images_batch(images_metadata)
-        
-        for i, img in enumerate(labeled_metadata, 1):
-            logger.info(f"\n{i}. {img['filename']}")
-            logger.info(f"   Label: {img.get('label', 'N/A')}")
-            logger.info(f"   Description: {img.get('description', 'N/A')}")
-        
-        metadata_path = os.path.join(
-            config.get('output.temp_directory', 'temp'),
-            'images',
-            'images_metadata_labeled.json'
-        )
-        labeler.save_labeled_metadata(labeled_metadata, metadata_path)
-        
-        logger.info(f"\n✓ Phase 2 Test Completed Successfully!")
-        return True
-        
+        # Use stage2_images function which requires pipeline_id
+        pipeline_data = stage2_extract_images(pdf_path, pipeline_data.id)
+        return pipeline_data
+            
     except Exception as e:
-        logger.error(f"Error during Phase 2 test: {str(e)}", exc_info=True)
-        return False
+        logger.error(f"Error during image extraction: {str(e)}", exc_info=True)
+        pipeline_data.update_stage("image_processing", "failed")
+        return pipeline_data
 
 
-def test_phase3(pdf_path: str, config) -> bool:
+def analyze_content(pdf_path: str, pipeline_data: Optional[PipelineData] = None) -> PipelineData:
     """
-    Test Phase 3: Content Analysis & Segmentation
+    Analyze content and create video outline.
     
     Args:
         pdf_path: Path to PDF file
-        config: Configuration object
+        pipeline_data: Existing pipeline data (required - must have pipeline_id)
         
     Returns:
-        True if successful, False otherwise
+        PipelineData instance with video outline
     """
-    logger.info("=== Phase 3: Content Analysis & Segmentation Test ===")
+    logger.info("=== Analyze Content ===")
     
-    if not os.path.exists(pdf_path):
-        logger.error(f"PDF file not found: {pdf_path}")
-        return False
+    if pipeline_data is None:
+        logger.error("Pipeline data is required. Run parse_document first.")
+        raise ValueError("Pipeline data is required for content analysis")
+    
+    from utils.config_loader import get_config
+    from pipeline.stage3_content import create_video_outline
+    
+    config = get_config()
     
     if not config.openai_api_key:
-        logger.error("OpenAI API key not found. Phase 3 requires OPENAI_API_KEY.")
-        return False
+        logger.error("OpenAI API key not found. Content analysis requires OPENAI_API_KEY.")
+        pipeline_data.update_stage("content_analysis", "failed")
+        return pipeline_data
     
     try:
-        logger.info("\n--- Step 1: Parsing PDF ---")
-        with PDFParser(pdf_path) as parser:
-            pdf_content = parser.extract_structured_content()
-        logger.info(f"Parsed {pdf_content['total_pages']} pages")
-        
-        logger.info("\n--- Step 2: Processing Images ---")
-        images_metadata = None
-        temp_dir = config.get('output.temp_directory', 'temp')
-        images_dir = os.path.join(temp_dir, 'images')
-        metadata_path = os.path.join(images_dir, 'images_metadata_labeled.json')
-        
-        if os.path.exists(metadata_path):
-            with open(metadata_path, 'r') as f:
-                images_metadata = json.load(f)
-            logger.info(f"Loaded {len(images_metadata)} labeled images")
-        else:
-            extractor = ImageExtractor(pdf_path, images_dir)
-            images_metadata = extractor.extract_images()
-            
-            if images_metadata:
-                labeler = ImageLabeler(config.openai_api_key)
-                images_metadata = labeler.label_images_batch(images_metadata)
-                labeler.save_labeled_metadata(images_metadata, metadata_path)
-        
-        logger.info("\n--- Step 3: Creating Video Outline ---")
-        analyzer = ContentAnalyzer(
-            config.openai_api_key,
+        # Use stage3_content function which requires pipeline_id
+        pipeline_data = create_video_outline(
+            pdf_path,
+            pipeline_id=pipeline_data.id,
+            skip_stock=False,
             target_segments=config.get('content.target_segments', 7),
             segment_duration=config.get('content.segment_duration', 45)
         )
-        outline = analyzer.analyze_content(pdf_content, images_metadata)
         
-        if config.get('images.use_stock_images', True):
-            fetcher = StockImageFetcher()
-            availability = fetcher.is_available()
-            
-            if availability['unsplash'] or availability['pexels']:
-                outline['segments'] = fetcher.fetch_for_segments(
-                    outline['segments'],
-                    config.get('images.preferred_stock_provider', 'unsplash')
-                )
-        
-        logger.info(f"\nCreated outline with {outline['total_segments']} segments")
-        
-        outline_path = os.path.join(temp_dir, 'video_outline.json')
-        analyzer.save_outline(outline, outline_path)
-        
-        logger.info("✓ Phase 3 Test Completed Successfully!")
-        return True
+        return pipeline_data
         
     except Exception as e:
-        logger.error(f"Error during Phase 3 test: {str(e)}", exc_info=True)
-        return False
+        logger.error(f"Error during content analysis: {str(e)}", exc_info=True)
+        pipeline_data.update_stage("content_analysis", "failed")
+        return pipeline_data
 
 
-def test_phase4(pdf_path: str, config) -> bool:
+def generate_script(pipeline_data: Optional[PipelineData] = None) -> PipelineData:
     """
-    Test Phase 4: Script Generation & Voiceover
+    Generate scripts and voiceovers from video outline.
     
     Args:
-        pdf_path: Path to PDF file
-        config: Configuration object
+        pipeline_data: Existing pipeline data (required - must have pipeline_id)
         
     Returns:
-        True if successful, False otherwise
+        PipelineData instance with scripts and audio
     """
-    logger.info("=== Phase 4: Script Generation & Voiceover Test ===")
+    logger.info("=== Generate Script ===")
     
-    if not os.path.exists(pdf_path):
-        logger.error(f"PDF file not found: {pdf_path}")
-        return False
+    if pipeline_data is None:
+        logger.error("Pipeline data is required. Run previous stages first.")
+        raise ValueError("Pipeline data is required for script generation")
     
-    if not config.openai_api_key:
-        logger.error("OpenAI API key not found. Phase 4 requires OPENAI_API_KEY.")
-        return False
+    from utils.config_loader import get_config
+    from pipeline.stage4_script import generate_scripts_and_voiceovers
+    
+    config = get_config()
+    
+    if not pipeline_data.video_outline:
+        logger.error("Video outline not found. Run analyze_content first.")
+        pipeline_data.update_stage("script_generation", "failed")
+        return pipeline_data
     
     try:
-        temp_dir = config.get('output.temp_directory', 'temp')
-        outline_path = os.path.join(temp_dir, 'video_outline.json')
-        
-        if os.path.exists(outline_path):
-            logger.info("Loading existing video outline...")
-            with open(outline_path, 'r') as f:
-                outline = json.load(f)
-        else:
-            logger.info("Running through Phases 1-3...")
-            
-            with PDFParser(pdf_path) as parser:
-                pdf_content = parser.extract_structured_content()
-            
-            images_dir = os.path.join(temp_dir, 'images')
-            metadata_path = os.path.join(images_dir, 'images_metadata_labeled.json')
-            images_metadata = None
-            
-            if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
-                    images_metadata = json.load(f)
-            else:
-                extractor = ImageExtractor(pdf_path, images_dir)
-                images_metadata = extractor.extract_images()
-                if images_metadata:
-                    labeler = ImageLabeler(config.openai_api_key)
-                    images_metadata = labeler.label_images_batch(images_metadata)
-                    labeler.save_labeled_metadata(images_metadata, metadata_path)
-            
-            analyzer = ContentAnalyzer(
-                config.openai_api_key,
-                target_segments=config.get('content.target_segments', 7),
-                segment_duration=config.get('content.segment_duration', 45)
-            )
-            outline = analyzer.analyze_content(pdf_content, images_metadata)
-            analyzer.save_outline(outline, outline_path)
-        
-        logger.info(f"Loaded outline with {len(outline['segments'])} segments")
-        
-        logger.info("\n--- Step 1: Generating Scripts ---")
-        script_gen = ScriptGenerator(config.openai_api_key)
-        script_data = script_gen.generate_script(outline)
-        
-        script_path = os.path.join(temp_dir, 'video_script.json')
-        script_gen.save_script(script_data, script_path)
-        
-        logger.info(f"Generated {script_data['total_segments']} scripts")
-        
-        logger.info("\n--- Step 2: Generating Voiceovers ---")
-        voiceover_gen = VoiceoverGenerator(
-            provider=config.get('voiceover.provider', 'elevenlabs'),
-            api_key=config.elevenlabs_api_key,
-            voice_id=config.get('voiceover.voice_id'),
-            output_dir=os.path.join(temp_dir, 'audio')
+        # Use stage4_script function which requires pipeline_id
+        pipeline_data = generate_scripts_and_voiceovers(
+            pipeline_id=pipeline_data.id,
+            provider=config.get('voiceover.provider', 'elevenlabs')
         )
         
-        result = voiceover_gen.generate_voiceovers(script_data)
-        
-        audio_metadata_path = os.path.join(temp_dir, 'script_with_audio.json')
-        voiceover_gen.save_metadata(result, audio_metadata_path)
-        
-        logger.info(f"Generated voiceovers for {len(result['segments'])} segments")
-        logger.info("✓ Phase 4 Test Completed Successfully!")
-        
-        return True
+        return pipeline_data
         
     except Exception as e:
-        logger.error(f"Error during Phase 4 test: {str(e)}", exc_info=True)
-        return False
+        logger.error(f"Error during script generation: {str(e)}", exc_info=True)
+        pipeline_data.update_stage("script_generation", "failed")
+        return pipeline_data
 
 
 def generate_full_video(
     pdf_path: str,
-    style: str,
     output_path: str,
-    config
-) -> bool:
+    config: 'Config'
+) -> PipelineData:
     """
     Run complete pipeline to generate video from PDF.
     
     Args:
         pdf_path: Path to PDF file
-        style: Video style ('slideshow', 'animated', 'ai_generated', 'combined')
         output_path: Output video path
         config: Configuration object
-        
+    
     Returns:
-        True if successful, False otherwise
+        PipelineData instance with complete pipeline data
     """
-    logger.info(f"=== Full Pipeline: PDF to {style.upper()} Video ===")
+    logger.info(f"=== Full Pipeline: PDF to Video ===")
     logger.info(f"Input: {pdf_path}")
     logger.info(f"Output: {output_path}\n")
     
     if not os.path.exists(pdf_path):
         logger.error(f"PDF file not found: {pdf_path}")
-        return False
+        pipeline_data = PipelineData()
+        pipeline_data.update_stage("initialization", "failed")
+        return pipeline_data
     
     if not config.openai_api_key:
         logger.error("OpenAI API key required for video generation")
-        return False
+        pipeline_data = PipelineData()
+        pipeline_data.update_stage("initialization", "failed")
+        return pipeline_data
     
     try:
         temp_dir = config.get('output.temp_directory', 'temp')
-        script_audio_path = os.path.join(temp_dir, 'script_with_audio.json')
         
-        if os.path.exists(script_audio_path):
-            logger.info("Found existing script and audio data. Reusing...")
-            with open(script_audio_path, 'r') as f:
-                script_with_audio = json.load(f)
-        else:
-            logger.info("Running full content pipeline (Phases 1-4)...\n")
-            
-            # Phase 1
-            logger.info("--- Phase 1: PDF Parsing ---")
-            with PDFParser(pdf_path) as parser:
-                pdf_content = parser.extract_structured_content()
-            logger.info(f"✓ Parsed {pdf_content['total_pages']} pages\n")
-            
-            # Phase 2
-            logger.info("--- Phase 2: Image Extraction & Labeling ---")
-            images_dir = os.path.join(temp_dir, 'images')
-            extractor = ImageExtractor(pdf_path, images_dir)
-            images_metadata = extractor.extract_images()
-            
-            if images_metadata:
-                labeler = ImageLabeler(config.openai_api_key)
-                images_metadata = labeler.label_images_batch(images_metadata)
-                
-                metadata_path = os.path.join(images_dir, 'images_metadata_labeled.json')
-                labeler.save_labeled_metadata(images_metadata, metadata_path)
-                logger.info(f"✓ Extracted and labeled {len(images_metadata)} images\n")
-            else:
-                images_metadata = []
-            
-            # Phase 3
-            logger.info("--- Phase 3: Content Analysis & Segmentation ---")
-            analyzer = ContentAnalyzer(
-                config.openai_api_key,
-                target_segments=config.get('content.target_segments', 7),
-                segment_duration=config.get('content.segment_duration', 45)
-            )
-            outline = analyzer.analyze_content(pdf_content, images_metadata)
-            
-            if config.get('images.use_stock_images', True):
-                fetcher = StockImageFetcher()
-                if fetcher.is_available()['unsplash'] or fetcher.is_available()['pexels']:
-                    outline['segments'] = fetcher.fetch_for_segments(
-                        outline['segments'],
-                        config.get('images.preferred_stock_provider', 'unsplash')
-                    )
-            
-            outline_path = os.path.join(temp_dir, 'video_outline.json')
-            analyzer.save_outline(outline, outline_path)
-            logger.info(f"✓ Created outline with {len(outline['segments'])} segments\n")
-            
-            # Phase 4
-            logger.info("--- Phase 4: Script Generation & Voiceover ---")
-            script_gen = ScriptGenerator(config.openai_api_key)
-            script_data = script_gen.generate_script(outline)
-            
-            script_path = os.path.join(temp_dir, 'video_script.json')
-            script_gen.save_script(script_data, script_path)
-            logger.info(f"✓ Generated scripts\n")
-            
-            voiceover_gen = VoiceoverGenerator(
-                provider=config.get('voiceover.provider', 'elevenlabs'),
-                api_key=config.elevenlabs_api_key,
-                voice_id=config.get('voiceover.voice_id'),
-                output_dir=os.path.join(temp_dir, 'audio')
-            )
-            
-            script_with_audio = voiceover_gen.generate_voiceovers(script_data)
-            voiceover_gen.save_metadata(script_with_audio, script_audio_path)
-            
-            combined_audio_path = os.path.join(temp_dir, 'full_voiceover.mp3')
-            voiceover_gen.generate_full_audio(script_with_audio, combined_audio_path)
-            logger.info(f"✓ Generated voiceovers\n")
+        # Initialize pipeline data
+        pipeline_data = PipelineData()
+        pipeline_data.source_path = pdf_path
+        pipeline_data.source_type = 'pdf'
+        pipeline_data.config = {
+            'target_segments': config.get('content.target_segments', 7),
+            'segment_duration': config.get('content.segment_duration', 45),
+            'voiceover_provider': config.get('voiceover.provider', 'elevenlabs')
+        }
+        pipeline_data.update_stage("document_processing", "in_progress")
         
-        # Video generation
-        logger.info(f"--- Generating {style.upper()} Video ---\n")
+        logger.info(f"Pipeline ID: {pipeline_data.id}\n")
         
-        output_dir = os.path.dirname(output_path)
-        if output_dir:
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        # Stage 1: Parse Document
+        logger.info("--- Stage 1: Document Parsing ---")
+        from pipeline.stage1_parsing import parse_document
+        pipeline_data = parse_document(pdf_path, pipeline_data)
+        if pipeline_data.status != "completed":
+            return pipeline_data
         
-        if style == 'slideshow':
-            video_path = generate_slideshow_video(script_with_audio, config.config, output_path)
-        elif style == 'animated':
-            video_path = generate_animated_video(script_with_audio, config.config, output_path)
-        elif style == 'ai_generated':
-            video_path = generate_ai_video(script_with_audio, config.config, output_path)
-        elif style == 'combined':
-            video_path = generate_combined_video(script_with_audio, config.config, output_path)
-        else:
-            logger.error(f"Unknown style: {style}")
-            return False
+        # Stage 2: Extract Images
+        logger.info("--- Stage 2: Image Extraction ---")
+        from pipeline.stage2_images import extract_images as stage2_extract_images
+        pipeline_data = stage2_extract_images(pdf_path, pipeline_data.id)
+        if pipeline_data.status != "completed":
+            return pipeline_data
+        
+        # Stage 3: Analyze Content
+        logger.info("--- Stage 3: Content Analysis ---")
+        from pipeline.stage3_content import create_video_outline
+        pipeline_data = create_video_outline(
+            pdf_path,
+            pipeline_data.id,
+            skip_stock=False,
+            target_segments=config.get('content.target_segments', 7),
+            segment_duration=config.get('content.segment_duration', 45)
+        )
+        if pipeline_data.status != "completed":
+            return pipeline_data
+        
+        # Stage 4: Generate Script
+        logger.info("--- Stage 4: Script Generation ---")
+        from pipeline.stage4_script import generate_scripts_and_voiceovers
+        pipeline_data = generate_scripts_and_voiceovers(
+            pipeline_data.id,
+            provider=config.get('voiceover.provider', 'elevenlabs')
+        )
+        if pipeline_data.status != "completed":
+            return pipeline_data
+        
+        # Stage 5: Generate Video
+        logger.info("--- Stage 5: Video Generation ---")
+        from pipeline.stage5_video import video_generation
+        
+        # Use provided output_path or let stage5 determine it using pipeline ID
+        pipeline_data = video_generation(pipeline_data.id, output_path=output_path)
         
         logger.info(f"\n{'='*80}")
-        logger.info("✓✓✓ VIDEO GENERATION COMPLETE! ✓✓✓")
+        logger.info("VIDEO GENERATION COMPLETE!")
         logger.info(f"{'='*80}")
-        logger.info(f"Output: {video_path}")
+        logger.info(f"Output: {pipeline_data.video_path}")
+        logger.info(f"Pipeline ID: {pipeline_data.id}")
+        
+        # Display timing information
+        if pipeline_data.stage_timings:
+            logger.info(f"\nStage Timings:")
+            for stage, timing in pipeline_data.stage_timings.items():
+                if 'duration' in timing:
+                    logger.info(f"  {stage}: {timing['duration']:.2f}s")
+        
         logger.info(f"{'='*80}\n")
         
-        return True
+        return pipeline_data
         
     except Exception as e:
         logger.error(f"Error during video generation: {str(e)}", exc_info=True)
-        return False
+        if 'pipeline_data' in locals():
+            pipeline_data.update_stage(pipeline_data.current_stage, "failed")
+            pipeline_data.save_to_folder(temp_dir)
+        else:
+            pipeline_data = PipelineData()
+            pipeline_data.update_stage("initialization", "failed")
+        return pipeline_data
 

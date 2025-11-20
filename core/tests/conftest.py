@@ -74,7 +74,7 @@ def clean_environment(monkeypatch):
 def reset_logger():
     """Reset logger configuration between tests."""
     import logging
-    import core.logger as logger_module
+    import utils.logger as logger_module
     
     # Reset the configured flag
     logger_module._configured = False
@@ -95,7 +95,7 @@ def reset_logger():
 @pytest.fixture(autouse=True)
 def reset_config_singleton():
     """Reset config singleton between tests."""
-    import core.config_loader as config_module
+    import utils.config_loader as config_module
     config_module._config_instance = None
     
     yield

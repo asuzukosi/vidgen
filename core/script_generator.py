@@ -11,7 +11,7 @@ from typing import List, Dict, Optional
 from openai import OpenAI
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
-from core.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -19,11 +19,12 @@ logger = get_logger(__name__)
 class ScriptGenerator:
     """generate voiceover scripts from video segments."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, prompts_dir: Optional[Path] = None):
         """
         initialize script generator.
         args:
             api_key: openai api key
+            prompts_dir: path to prompts directory (from config)
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
@@ -33,7 +34,11 @@ class ScriptGenerator:
         self.model = "gpt-4o"
         
         # initialize jinja2 environment for prompt templates
-        prompts_dir = Path(__file__).parent.parent / 'prompts'
+        if prompts_dir is None:
+            from utils.config_loader import get_config
+            config = get_config()
+            prompts_dir = config.get_prompts_directory()
+        
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(prompts_dir)),
             autoescape=select_autoescape(['html', 'xml'])
@@ -140,7 +145,7 @@ class ScriptGenerator:
         key_points_text = "\n".join([f"- {point}" for point in segment.get('key_points', [])])
         
         # load and render template
-        template = self.jinja_env.get_template('script_prompt.j2')
+        template = self.jinja_env.get_template('script_instruction.j2')
         prompt = template.render(
             segment=segment,
             segment_num=segment_num,
@@ -254,63 +259,4 @@ class ScriptGenerator:
             f.write(script_data['full_script'])
         
         logger.info(f"exported script text to {output_path}")
-
-
-def generate_script(video_outline: Dict, api_key: Optional[str] = None) -> Dict:
-    """
-    convenience function to generate script.
-    args:
-        video_outline: video outline dictionary
-        api_key: openai api key
-    returns:
-        script data
-    """
-    generator = ScriptGenerator(api_key)
-    return generator.generate_script(video_outline)
-
-
-if __name__ == "__main__":
-    # test the vidgen script generator
-    import sys
-    
-    if len(sys.argv) < 2:
-        print("usage: python script_generator.py <video_outline.json>")
-        sys.exit(1)
-    
-    outline_path = sys.argv[1]
-    
-    print("**** loading video outline ****")
-    with open(outline_path, 'r') as f:
-        outline = json.load(f)
-    
-    print(f"loaded outline with {len(outline['segments'])} segments\n")
-    
-    print("**** generating scripts ****\n")
-    generator = ScriptGenerator()
-    script_data = generator.generate_script(outline)
-    
-    print(f"**** generated script ****")
-    print(f"title: {script_data['title']}")
-    print(f"total segments: {script_data['total_segments']}")
-    print(f"total words: {sum(s['word_count'] for s in script_data['segments'])}\n")
-    
-    for i, segment in enumerate(script_data['segments'], 1):
-        print(f"\n{'='*80}\n")
-        print(f"segment {i}: {segment['title']}")
-        print(f"{'='*80}\n")
-        print(f"duration: {segment['duration']}s | words: {segment['word_count']}")
-        print(f"\nscript:")
-        print(segment['script'])
-    
-    # save script
-    output_path = "temp/video_script.json"
-    generator.save_script(script_data, output_path)
-    
-    text_output = "temp/video_script.txt"
-    generator.export_script_text(script_data, text_output)
-    
-    print(f"\n{'='*80}")
-    print(f"script saved to: {output_path}")
-    print(f"text exported to: {text_output}")
-    print(f"{'='*80}\n")
 

@@ -30,16 +30,20 @@ RELEVANCE: high
         return mock_client
     
     @pytest.fixture
-    def labeler(self, mock_openai_client):
+    def labeler(self, mock_openai_client, tmp_path):
         """Create an ImageLabeler instance with mocked client."""
+        prompts_dir = tmp_path / 'prompts'
+        prompts_dir.mkdir()
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test_key'}):
-            labeler = ImageLabeler('test_key')
+            labeler = ImageLabeler('test_key', prompts_dir=prompts_dir)
             labeler.client = mock_openai_client
             return labeler
     
-    def test_initialization_with_api_key(self):
+    def test_initialization_with_api_key(self, tmp_path):
         """Test ImageLabeler initialization with API key."""
-        labeler = ImageLabeler('test_api_key')
+        prompts_dir = tmp_path / 'prompts'
+        prompts_dir.mkdir()
+        labeler = ImageLabeler('test_api_key', prompts_dir=prompts_dir)
         assert labeler.api_key == 'test_api_key'
         assert labeler.model == 'gpt-4o'
     
