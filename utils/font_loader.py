@@ -4,8 +4,9 @@ loads and manages fonts for video generation.
 """
 
 import os
+import platform
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from PIL import ImageFont
 from utils.logger import get_logger
 from utils.config_loader import Config
@@ -40,20 +41,95 @@ class FontLoader:
         
         return fonts_dir
     
+    def _get_system_font_directories(self) -> List[Path]:
+        """
+        get system font directories based on the operating system.
+        
+        returns:
+            list of system font directory paths
+        """
+        system = platform.system()
+        font_dirs = []
+        
+        if system == "Darwin":  # macOS
+            font_dirs = [
+                Path("/System/Library/Fonts"),
+                Path("/Library/Fonts"),
+                Path.home() / "Library/Fonts",
+            ]
+        elif system == "Windows":
+            font_dirs = [
+                Path("C:/Windows/Fonts"),
+                Path(os.getenv("LOCALAPPDATA", "")) / "Microsoft/Windows/Fonts",
+            ]
+        else:  # Linux and others
+            font_dirs = [
+                Path("/usr/share/fonts"),
+                Path("/usr/local/share/fonts"),
+                Path.home() / ".fonts",
+                Path.home() / ".local/share/fonts",
+            ]
+        
+        # filter to only existing directories
+        return [d for d in font_dirs if d.exists() and d.is_dir()]
+    
+    def _find_system_font(self, font_name: str) -> Optional[Path]:
+        """
+        find a font by name in system font directories.
+        searches for fonts matching the name (case-insensitive).
+        
+        args:
+            font_name: font name or filename (e.g., "Roboto", "Roboto-Bold.ttf")
+        
+        returns:
+            path to font file if found, None otherwise
+        """
+        if not font_name:
+            return None
+        
+        # normalize font name - remove extension and spaces, convert to lowercase
+        font_base = Path(font_name).stem.lower().replace(' ', '').replace('-', '').replace('_', '')
+        
+        system_dirs = self._get_system_font_directories()
+        font_extensions = {'.ttf', '.otf', '.ttc', '.woff', '.woff2'}
+        
+        for font_dir in system_dirs:
+            try:
+                # search recursively in system font directories
+                for font_file in font_dir.rglob('*'):
+                    if font_file.suffix.lower() in font_extensions:
+                        # check if font name matches
+                        file_base = font_file.stem.lower().replace(' ', '').replace('-', '').replace('_', '')
+                        if font_base in file_base or file_base in font_base:
+                            logger.debug(f"found system font: {font_file}")
+                            return font_file
+            except (PermissionError, OSError) as e:
+                logger.debug(f"could not search {font_dir}: {e}")
+                continue
+        
+        return None
+    
     def _resolve_font_path(self, font_path: Optional[str]) -> Optional[Path]:
         """
         resolve font path to absolute path.
+        first checks system fonts by name, then checks fonts folder.
         supports absolute paths, relative paths from fonts directory, 
         relative paths from project root, or system font paths.
         
         args:
-            font_path: font path from config (can be relative or absolute)
+            font_path: font path from config (can be font name, relative or absolute path)
         
         returns:
             resolved path or None if not found
         """
         if not font_path:
             return None
+        
+        # first, try to find in system fonts by name
+        system_font = self._find_system_font(font_path)
+        if system_font:
+            logger.info(f"found font in system fonts: {system_font}")
+            return system_font
         
         # if absolute path, use as-is
         if os.path.isabs(font_path):
@@ -63,9 +139,10 @@ class FontLoader:
             logger.warning(f"font path not found: {font_path}")
             return None
         
-        # try relative to fonts directory first
+        # try relative to fonts directory (downloaded fonts)
         path = self.fonts_dir / font_path
         if path.exists():
+            logger.info(f"found font in fonts directory: {path}")
             return path
         
         # try relative to project root
@@ -84,7 +161,7 @@ class FontLoader:
         if path.exists():
             return path
         
-        logger.warning(f"font path not found: {font_path} (tried: {self.fonts_dir / font_path}, {project_root / font_path}, {Path(font_path)}, {path})")
+        logger.warning(f"font path not found: {font_path} (checked system fonts and: {self.fonts_dir / font_path}, {project_root / font_path}, {Path(font_path)}, {path})")
         return None
     
     def load_font(self, font_path: Optional[str], size: int) -> ImageFont.FreeTypeFont:
