@@ -6,8 +6,8 @@ import pytest
 import os
 import json
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
-from core.content_analyzer import ContentAnalyzer, analyze_pdf_content
+from unittest.mock import MagicMock, patch
+from core.content_analyzer import ContentAnalyzer
 
 
 class TestContentAnalyzer:
@@ -157,99 +157,7 @@ DURATION: 45
         assert 'Test Title' in prompt
         assert '5' in prompt
         assert '45' in prompt
-    
-    # Note: These methods were removed as image selection is now handled by the AI model
-    # during outline creation. Tests are commented out but kept for reference.
-    
-    # def test_create_fallback_outline(self, analyzer, sample_pdf_content):
-    #     """Test creating fallback outline."""
-    #     outline = analyzer._create_fallback_outline(sample_pdf_content)
-    #     
-    #     assert 'title' in outline
-    #     assert 'segments' in outline
-    #     assert len(outline['segments']) > 0
-    #     assert any(s['title'] == 'Introduction' for s in outline['segments'])
-    #     assert any(s['title'] == 'Summary' for s in outline['segments'])
-    # 
-    # def test_extract_key_points(self, analyzer):
-    #     """Test extracting key points from content."""
-    #     content = "First point.\nSecond point.\nThird point.\nFourth point."
-    #     
-    #     points = analyzer._extract_key_points(content, max_points=3)
-    #     
-    #     assert len(points) <= 3
-    #     assert 'First point.' in points
-    # 
-    # def test_extract_keywords(self, analyzer):
-    #     """Test extracting keywords from text."""
-    #     text = "Introduction to Machine Learning and Data Science"
-    #     
-    #     keywords = analyzer._extract_keywords(text)
-    #     
-    #     assert isinstance(keywords, list)
-    #     assert len(keywords) <= 5
-    # 
-    # def test_match_images_to_segments(self, analyzer):
-    #     """Test matching images to segments."""
-    #     outline = {
-    #         'segments': [
-    #             {
-    #                 'title': 'Machine Learning',
-    #                 'purpose': 'Explain ML concepts',
-    #                 'visual_keywords': ['machine', 'learning', 'algorithm'],
-    #                 'pdf_images': []
-    #             }
-    #         ]
-    #     }
-    #     
-    #     images_metadata = [
-    #         {
-    #             'label': 'Machine Learning Diagram',
-    #             'description': 'Shows machine learning process',
-    #             'key_elements': ['algorithm', 'data', 'model']
-    #         }
-    #     ]
-    #     
-    #     result = analyzer._match_images_to_segments(outline, images_metadata)
-    #     
-    #     assert len(result['segments'][0]['pdf_images']) > 0
-    # 
-    # def test_identify_stock_keywords(self, analyzer):
-    #     """Test identifying stock image keywords."""
-    #     outline = {
-    #         'segments': [
-    #             {
-    #                 'title': 'Test Segment',
-    #                 'visual_keywords': ['keyword1', 'keyword2', 'keyword3'],
-    #                 'pdf_images': [],
-    #                 'stock_image_query': None
-    #             }
-    #         ]
-    #     }
-    #     
-    #     result = analyzer._identify_stock_keywords(outline)
-    #     
-    #     assert result['segments'][0]['stock_image_query'] is not None
-    #     assert 'keyword1' in result['segments'][0]['stock_image_query']
-    # 
-    # def test_identify_stock_keywords_skip_with_images(self, analyzer):
-    #     """Test that segments with enough images don't get stock queries."""
-    #     outline = {
-    #         'segments': [
-    #             {
-    #                 'title': 'Test Segment',
-    #                 'visual_keywords': ['keyword1'],
-    #                 'pdf_images': [{'img': 1}, {'img': 2}],
-    #                 'stock_image_query': None
-    #             }
-    #         ]
-    #     }
-    #     
-    #     result = analyzer._identify_stock_keywords(outline)
-    #     
-    #     # Should not add stock query when already has 2+ images
-    #     assert result['segments'][0]['stock_image_query'] is None
-    
+
     def test_save_outline(self, analyzer):
         """Test saving outline to JSON."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -267,24 +175,3 @@ DURATION: 45
             with open(output_path, 'r') as f:
                 loaded = json.load(f)
                 assert loaded['title'] == 'Test'
-
-
-# Note: analyze_pdf_content convenience function may have been removed or changed
-# This test is commented out until the function signature is confirmed
-# 
-# class TestAnalyzePDFContent:
-#     """Test suite for analyze_pdf_content convenience function."""
-#     
-#     @patch('core.content_analyzer.ContentAnalyzer')
-#     def test_analyze_pdf_content_function(self, mock_analyzer_class):
-#         """Test convenience function."""
-#         mock_analyzer = MagicMock()
-#         mock_analyzer.analyze_content.return_value = {'segments': []}
-#         mock_analyzer_class.return_value = mock_analyzer
-#         
-#         pdf_content = {'title': 'Test', 'sections': []}
-#         result = analyze_pdf_content(pdf_content, None, 'api_key')
-#         
-#         assert 'segments' in result
-#         mock_analyzer.analyze_content.assert_called_once()
-

@@ -5,7 +5,7 @@ Tests for stock_image_fetcher module.
 import pytest
 import os
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from core.stock_image_fetcher import StockImageFetcher, fetch_stock_images
 
 

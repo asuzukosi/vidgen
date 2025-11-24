@@ -2,11 +2,10 @@
 Tests for video_utils module.
 """
 
-import pytest
 import numpy as np
 import tempfile
 import os
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from PIL import Image
 from utils.video_utils import VideoUtils
 

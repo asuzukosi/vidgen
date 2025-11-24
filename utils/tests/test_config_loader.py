@@ -6,8 +6,7 @@ import pytest
 import os
 import yaml
 import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from utils.config_loader import Config, get_config
 
 

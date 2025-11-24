@@ -4,9 +4,8 @@ Tests for script_generator module.
 
 import pytest
 import os
-import json
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import  MagicMock, patch
 from core.script_generator import ScriptGenerator, generate_script
 
 

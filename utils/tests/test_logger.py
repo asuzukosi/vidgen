@@ -2,9 +2,7 @@
 Tests for logger module.
 """
 
-import pytest
 import logging
-import os
 import tempfile
 from pathlib import Path
 from utils.logger import (

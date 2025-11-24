@@ -5,7 +5,7 @@ Tests for image_labeler module.
 import pytest
 import os
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from core.image_labeler import ImageLabeler, label_images
 
 

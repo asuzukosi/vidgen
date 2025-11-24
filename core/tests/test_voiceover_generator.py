@@ -6,8 +6,7 @@ import pytest
 import os
 import json
 import tempfile
-from unittest.mock import Mock, MagicMock, patch
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 from core.voiceover_generator import VoiceoverGenerator, generate_voiceovers
 
 
