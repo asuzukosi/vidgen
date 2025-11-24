@@ -1,14 +1,21 @@
 """
-Stage 3: Content Analysis
-Analyze content and create video outline.
-Requires pipeline_id to load cached PipelineData.
+content analysis operation
+analyze content and create video outline with visual asset planning.
+requires pipeline_id to load cached pipeline data.
+
+workflow sequence:
+    this is the second operation in the standard workflow:
+    1. document_processing  - parse pdf and extract content (stage1)
+    2. content_analysis     - analyze content and create video outline (THIS MODULE - stage2)
+    3. script_generation    - generate narration scripts and voiceovers (stage3)
+    4. video_generation     - compose final video from all assets (stage4)
+    
+    note: the workflow can be customized based on document type and requirements.
 """
 
 import sys
 import os
 import argparse
-from typing import Optional
-from pathlib import Path
 
 # add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,29 +29,27 @@ from core.image_generator import ImageGenerator
 from core.pipeline_data import PipelineData
 
 setup_logging(log_dir='temp')
-logger = get_logger(__name__)
+logger = get_logger('stage2_content')
 
 
-def create_video_outline(pdf_path: str,
-                         pipeline_id: str,
+def create_video_outline(pipeline_id: str,
                          skip_stock: bool = False,
                          target_segments: int = 7,
                          segment_duration: int = 45) -> PipelineData:
     """
-    Analyze content and create video outline.
-    Requires pipeline_id to load cached PipelineData.
+    analyze content and create video outline.
+    requires pipeline_id to load cached pipeline data.
     
-    Args:
-        pdf_path: Path to PDF file
-        pipeline_id: UUID of existing pipeline data
-        skip_stock: Skip stock image fetching
-        target_segments: Target number of video segments
-        segment_duration: Target duration per segment in seconds
+    args:
+        pipeline_id: uuid of existing pipeline data
+        skip_stock: skip stock image fetching
+        target_segments: target number of video segments
+        segment_duration: target duration per segment in seconds
     
-    Returns:
-        PipelineData instance with video outline
+    returns:
+        pipelinedata instance with video outline
     """
-    logger.info("=== Stage 3: Content Analysis ===")
+    logger.info("stage 2: content analysis started")
     
     config = get_config()
     temp_dir = config.get('output.temp_directory', 'temp')
@@ -52,21 +57,21 @@ def create_video_outline(pdf_path: str,
     # Load pipeline data by ID (cache is compulsory)
     try:
         pipeline_data = PipelineData.load_by_id(pipeline_id, temp_dir)
-        logger.info(f"Loaded pipeline data: {pipeline_data.id}")
+        logger.info(f"loaded pipeline data: {pipeline_data.id}")
     except FileNotFoundError:
-        logger.error(f"Pipeline data not found for ID: {pipeline_id}")
-        logger.error("Run stage1_parsing.py and stage2_images.py first")
+        logger.error(f"pipeline data not found for ID: {pipeline_id}")
+        logger.error("run stage1_parsing.py first")
         sys.exit(1)
     
     pipeline_data.update_stage("content_analysis", "in_progress")
     
     if not config.openai_api_key:
-        logger.error("OpenAI API key required")
+        logger.error("openai api key required")
         pipeline_data.update_stage("content_analysis", "failed")
         return pipeline_data
     
     if not pipeline_data.parsed_content:
-        logger.error("Parsed content not found in pipeline data")
+        logger.error("parsed content not found in pipeline data")
         pipeline_data.update_stage("content_analysis", "failed")
         return pipeline_data
     
@@ -74,10 +79,10 @@ def create_video_outline(pdf_path: str,
         pdf_content = pipeline_data.parsed_content
         images_metadata = pipeline_data.images_metadata or []
         
-        logger.info(f"Loaded {len(pdf_content['sections'])} sections and {len(images_metadata)} images")
+        logger.info(f"loaded {len(pdf_content['sections'])} sections and {len(images_metadata)} images")
         
         # Process context into chunks
-        logger.info("Processing context into chunks")
+        logger.info("processing context into chunks")
         all_content = ""
         for section in pdf_content['sections']:
             all_content += section['content']
@@ -104,10 +109,10 @@ def create_video_outline(pdf_path: str,
             'total_content_length': len(all_content)
         }
         
-        logger.info(f"Generated {len(chunks)} chunks")
+        logger.info(f"generated {len(chunks)} chunks")
         
         # Create video outline
-        logger.info("Creating video outline")
+        logger.info("creating video outline")
         analyzer = ContentAnalyzer(
             api_key=config.openai_api_key,
             target_segments=target_segments,
@@ -122,20 +127,20 @@ def create_video_outline(pdf_path: str,
         
         # Fetch stock images
         if not skip_stock and config.get('images.use_stock_images', True):
-            logger.info("Fetching stock images")
+            logger.info("fetching stock images")
             fetcher = StockImageFetcher(config.unsplash_access_key, config.pexels_api_key)
             availability = fetcher.is_available()
             if availability['unsplash'] or availability['pexels']:
                 preferred = config.get('images.preferred_stock_provider', 'unsplash')
                 outline['segments'] = fetcher.fetch_for_segments(outline['segments'], preferred)
             else:
-                logger.info("No stock image API keys configured")
+                logger.info("no stock image api keys configured")
         else:
-            logger.info("Skipping stock images")
+            logger.info("skipping stock images")
         
         # Generate AI images if enabled
         if config.get('images.use_ai_generated', False):
-            logger.info("Generating AI images")
+            logger.info("generating ai images")
             generator = ImageGenerator(
                 api_key=config.openai_api_key,
                 model=config.get('images.ai_generator.model', 'dall-e-3'),
@@ -150,9 +155,9 @@ def create_video_outline(pdf_path: str,
                     pipeline_id=pipeline_data.id
                 )
             else:
-                logger.warning("AI image generation not available (missing API key)")
+                logger.warning("ai image generation not available (missing api key)")
         else:
-            logger.info("Skipping AI image generation")
+            logger.info("skipping ai image generation")
         
         # Update pipeline data
         pipeline_data.video_outline = outline
@@ -162,27 +167,25 @@ def create_video_outline(pdf_path: str,
         pipeline_data.save_to_folder(temp_dir)
         pipeline_data.save_to_pickle(os.path.join(temp_dir, f"pipeline_{pipeline_data.id}.pkl"))
         
-        logger.info(f"Video outline created. Pipeline ID: {pipeline_data.id}")
+        logger.info(f"video outline created. pipeline ID: {pipeline_data.id}")
         return pipeline_data
         
     except Exception as e:
-        logger.error(f"Error during content analysis: {str(e)}", exc_info=True)
+        logger.error(f"error during content analysis: {str(e)}", exc_info=True)
         pipeline_data.update_stage("content_analysis", "failed")
         return pipeline_data
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Create video outline from PDF')
-    parser.add_argument('pdf_path', type=str, help='Path to the PDF file')
+    parser = argparse.ArgumentParser(description='stage 2: analyze content and create video outline')
     parser.add_argument('--pipeline-id', type=str, required=True,
-                        help='UUID of pipeline data (from stage1)')
-    parser.add_argument('--skip-stock', action='store_true', help='Skip stock image fetching')
-    parser.add_argument('--target-segments', type=int, default=7, help='Target number of video segments')
-    parser.add_argument('--segment-duration', type=int, default=45, help='Target duration per segment in seconds')
+                        help='uuid of pipeline data (from stage 1)')
+    parser.add_argument('--skip-stock', action='store_true', help='skip stock image fetching')
+    parser.add_argument('--target-segments', type=int, default=7, help='target number of video segments')
+    parser.add_argument('--segment-duration', type=int, default=45, help='target duration per segment in seconds')
     args = parser.parse_args()
     
     pipeline_data = create_video_outline(
-        args.pdf_path,
         args.pipeline_id,
         skip_stock=args.skip_stock,
         target_segments=args.target_segments,
@@ -190,12 +193,13 @@ def main():
     )
     
     if pipeline_data.status == "completed":
-        logger.info(f"✓ Video outline created successfully. Pipeline ID: {pipeline_data.id}")
+        logger.info(f"✓ video outline created successfully. pipeline ID: {pipeline_data.id}")
         sys.exit(0)
     else:
-        logger.error(f"✗ Video outline creation failed. Pipeline ID: {pipeline_data.id}")
+        logger.error(f"✗ video outline creation failed. pipeline ID: {pipeline_data.id}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
+

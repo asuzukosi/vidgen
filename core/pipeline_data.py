@@ -1,6 +1,16 @@
 """
-Pipeline data model
-Holds all data related to a video generation operation.
+pipeline data model
+holds all data related to a video generation operation.
+workflow operations:
+    the pipeline supports multiple workflow configurations. the standard workflow includes:
+    1. document_processing  - parse and extract document structure
+    2. image_processing     - extract and label images with AI
+    3. content_analysis     - analyze content and create video outline
+    4. script_generation    - generate narration scripts and voiceovers
+    5. video_generation     - compose final video from all assets
+    alternative workflows may skip operations, reorder them, or introduce custom operations
+    depending on the input type and desired output. the system is designed to support
+    multiple workflow paths for different use cases.
 """
 
 import os
@@ -18,51 +28,52 @@ logger = get_logger(__name__)
 
 class PipelineData(BaseModel):
     """
-    Comprehensive data model for video generation pipeline.
+    comprehensive data model for document processing pipeline.
+    holds all data from each operation in the pipeline and provides
+    serialization and deserialization capabilities.
     
-    Holds all data at each stage of the pipeline and provides
-    serialization/deserialization capabilities.
+    supports multiple workflow configurations with flexible operation ordering.
     """
     
-    # Identification
+    # identification
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     
-    # Source document
+    # source document
     source_path: Optional[str] = None
     source_type: Optional[str] = None  # 'pdf', 'html', etc.
     
-    # Stage 1 & 2: Document Processing
-    parsed_content: Optional[Dict[str, Any]] = None  # Structured content from document
-    images_metadata: List[Dict[str, Any]] = Field(default_factory=list)
+    # document_processing & image_processing operations
+    parsed_content: Optional[Dict[str, Any]] = None  # structured content from document
+    images_metadata: List[Dict[str, Any]] = Field(default_factory=list)  # extracted and labeled images
     
-    # Stage 3: Content Analysis
-    chunks: List[Dict[str, Any]] = Field(default_factory=list)  # Processed chunks
-    video_outline: Optional[Dict[str, Any]] = None
+    # content_analysis operation
+    chunks: List[Dict[str, Any]] = Field(default_factory=list)  # processed content chunks
+    video_outline: Optional[Dict[str, Any]] = None  # video structure and segment plan
     
-    # Stage 4: Script & Voiceover
-    script_data: Optional[Dict[str, Any]] = None
-    script_with_audio: Optional[Dict[str, Any]] = None
+    # script_generation operation
+    script_data: Optional[Dict[str, Any]] = None  # generated narration scripts
+    script_with_audio: Optional[Dict[str, Any]] = None  # scripts with voiceover audio paths
     
-    # Stage 5: Video Generation
-    video_path: Optional[str] = None
-    output_path: Optional[str] = None  # Final output video path
+    # video_generation operation
+    video_path: Optional[str] = None  # path to generated video file
+    output_path: Optional[str] = None  # final output video path
     
-    # Configuration
-    config: Optional[Dict[str, Any]] = None
+    # configuration
+    config: Optional[Dict[str, Any]] = None  # pipeline configuration settings
     
-    # Context processor information
-    context_processor_info: Optional[Dict[str, Any]] = None  # Stores context processor config and results
+    # context processor information
+    context_processor_info: Optional[Dict[str, Any]] = None  # stores context processor config and results
     
-    # Status tracking
-    current_stage: str = "initialized"
+    # status tracking
+    current_stage: str = "initialized"  # current operation name
     status: str = "pending"  # pending, in_progress, completed, failed
     
-    # Timing information
-    stage_timings: Dict[str, Dict[str, Any]] = Field(default_factory=dict)  # {stage_name: {start_time, end_time, duration}}
+    # timing information
+    stage_timings: Dict[str, Dict[str, Any]] = Field(default_factory=dict)  # {operation_name: {start_time, end_time, duration}}
     
     class Config:
-        """Pydantic configuration."""
+        """pydantic configuration."""
         arbitrary_types_allowed = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
@@ -70,14 +81,14 @@ class PipelineData(BaseModel):
     
     def save_to_folder(self, base_dir: str) -> str:
         """
-        Save pipeline data to a folder as JSON files.
-        Creates a subfolder named with the pipeline ID.
+        save pipeline data to a folder as JSON files.
+        creates a subfolder named with the pipeline ID.
         
-        Args:
-            base_dir: Base directory where pipeline data will be saved
+        args:
+            base_dir: base directory where pipeline data will be saved
         
-        Returns:
-            Path to the saved data folder
+        returns:
+            path to the saved data folder
         """
         base_path = Path(base_dir)
         base_path.mkdir(parents=True, exist_ok=True)
@@ -119,13 +130,13 @@ class PipelineData(BaseModel):
     
     def save_to_pickle(self, file_path: str) -> str:
         """
-        Save pipeline data to a pickle file.
+        save pipeline data to a pickle file.
         
-        Args:
-            file_path: Path to pickle file
+        args:
+            file_path: path to pickle file
         
-        Returns:
-            Path to the saved pickle file
+        returns:
+            path to the saved pickle file
         """
         file_path_obj = Path(file_path)
         file_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -139,32 +150,31 @@ class PipelineData(BaseModel):
     @classmethod
     def load_from_folder(cls, folder_path: str) -> 'PipelineData':
         """
-        Load pipeline data from a folder.
-        Can accept either a base directory with pipeline ID subfolder, or direct path to pipeline folder.
+        load pipeline data from a folder.
+        can accept either a base directory with pipeline ID subfolder, or a direct path to the pipeline folder.
+        args:
+            folder_path: path to folder containing pipeline data (can be base_dir/pipeline_id or direct path)
         
-        Args:
-            folder_path: Path to folder containing pipeline data (can be base_dir/pipeline_id or direct path)
-        
-        Returns:
-            PipelineData instance
+        returns:
+            pipelinedata instance
         """
         folder = Path(folder_path)
         
-        # If folder doesn't exist, try treating it as base_dir/pipeline_id
+        # if folder doesn't exist, try treating it as base_dir/pipeline_id
         if not folder.exists():
-            # Check if it's a base directory with UUID subfolder
+            # check if it's a base directory with UUID subfolder
             base_dir = folder.parent
             pipeline_id = folder.name
             folder = base_dir / pipeline_id
         
-        # Try to load main data file
+        # try to load main data file
         main_file = folder / "pipeline_data.json"
         if main_file.exists():
             with open(main_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             return cls(**data)
         
-        # Fallback: reconstruct from individual files
+        # fallback: reconstruct from individual components
         data = {
             "id": folder.name,
             "created_at": datetime.now().isoformat()
@@ -201,17 +211,16 @@ class PipelineData(BaseModel):
     @classmethod
     def load_by_id(cls, pipeline_id: str, base_dir: str = "temp") -> 'PipelineData':
         """
-        Load pipeline data by ID from base directory.
+        load pipeline data by ID from base directory.
+        args:
+            pipeline_id: uuid of the pipeline
+            base_dir: base directory containing pipeline folders
         
-        Args:
-            pipeline_id: UUID of the pipeline
-            base_dir: Base directory containing pipeline folders
+        returns:
+            pipelinedata instance
         
-        Returns:
-            PipelineData instance
-        
-        Raises:
-            FileNotFoundError: If pipeline folder doesn't exist
+        raises:
+            filenotfounderror: if pipeline folder doesn't exist
         """
         folder_path = Path(base_dir) / pipeline_id
         if not folder_path.exists():
@@ -221,13 +230,12 @@ class PipelineData(BaseModel):
     @classmethod
     def load_from_pickle(cls, file_path: str) -> 'PipelineData':
         """
-        Load pipeline data from a pickle file.
+        load pipeline data from a pickle file.
+        args:
+            file_path: path to pickle file
         
-        Args:
-            file_path: Path to pickle file
-        
-        Returns:
-            PipelineData instance
+        returns:
+            pipelinedata instance
         """
         with open(file_path, 'rb') as f:
             data = pickle.load(f)
@@ -237,21 +245,25 @@ class PipelineData(BaseModel):
     
     def update_stage(self, stage: str, status: str = "in_progress"):
         """
-        Update current stage and status, tracking timing.
+        update current operation and status, tracking timing.
         
-        Args:
-            stage: Current stage name
-            status: Status (pending, in_progress, completed, failed)
+        note: method name 'update_stage' is kept for backward compatibility,
+        but the 'stage' parameter represents the current operation name
+        (e.g., 'document_processing', 'image_processing', 'content_analysis', etc.)
+        
+        args:
+            stage: current operation name
+            status: status (pending, in_progress, completed, failed)
         """
         now = datetime.now().isoformat()
         
-        # If starting a new stage
+        # if starting a new operation
         if status == "in_progress" and stage != self.current_stage:
             if stage not in self.stage_timings:
                 self.stage_timings[stage] = {}
             self.stage_timings[stage]['start_time'] = now
         
-        # If completing or failing a stage
+        # if completing or failing an operation
         if status in ["completed", "failed"]:
             if stage in self.stage_timings and 'start_time' in self.stage_timings[stage]:
                 start_time = datetime.fromisoformat(self.stage_timings[stage]['start_time'])
@@ -267,10 +279,9 @@ class PipelineData(BaseModel):
     
     def get_summary(self) -> Dict[str, Any]:
         """
-        Get a summary of the pipeline data.
-        
-        Returns:
-            Dictionary with summary information
+        get a summary of the pipeline data including operation status and timing.
+        returns:
+            dictionary with summary information including completed operations and timings
         """
         total_duration = sum(
             timing.get('duration', 0) 
@@ -283,7 +294,7 @@ class PipelineData(BaseModel):
             "created_at": self.created_at,
             "source_path": self.source_path,
             "source_type": self.source_type,
-            "current_stage": self.current_stage,
+            "current_stage": self.current_stage,  # current operation name
             "status": self.status,
             "output_path": self.output_path,
             "has_parsed_content": self.parsed_content is not None,
@@ -292,7 +303,7 @@ class PipelineData(BaseModel):
             "has_scripts": self.script_data is not None,
             "has_audio": self.script_with_audio is not None,
             "has_video": self.video_path is not None and os.path.exists(self.video_path) if self.video_path else False,
-            "stage_timings": self.stage_timings,
+            "stage_timings": self.stage_timings,  # operation timings
             "total_duration": total_duration,
             "context_processor_info": self.context_processor_info
         }

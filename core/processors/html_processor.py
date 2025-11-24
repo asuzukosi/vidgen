@@ -1,47 +1,39 @@
 """
-HTML processor module
-Extracts text, structure, and images from HTML documents.
-Uses BeautifulSoup for HTML parsing.
+html processor module
+extracts text, structure, and images from HTML documents.
+uses BeautifulSoup for HTML parsing.
 """
 
 import os
 import json
 import hashlib
-import re
 import urllib.parse
 import io
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 from bs4 import BeautifulSoup
 from PIL import Image
 import requests
 from utils.logger import get_logger
 from core.processors.document_processor import DocumentProcessor
 
-logger = get_logger(__name__)
+logger = get_logger('html_processor')
 
 
 class HTMLProcessor(DocumentProcessor):
     """
-    Processor for extracting text, structure, and images from HTML documents.
-    
-    Args:
-        html_path: Path to the HTML file or URL
-        images_output_dir: Directory to save extracted images (default: "temp/images")
-    
-    Example:
-        with HTMLProcessor('document.html') as processor:
-            content = processor.extract_structured_content()
-            images = processor.extract_images()
+    processor for extracting text, structure, and images from html documents.
+    args:
+        html_path: path to the html file or URL
+        images_output_dir: directory to save extracted images (default: "temp/images")
     """
     
     def __init__(self, html_path: str, images_output_dir: str = "temp/images"):
         """
-        Initialize HTML processor.
-        
-        Args:
-            html_path: Path to HTML file or URL
-            images_output_dir: Directory to save extracted images
+        initialize HTML processor.
+        args:
+            html_path: path to html file or URL
+            images_output_dir: directory to save extracted images
         """
         self.html_path = html_path
         self.images_output_dir = images_output_dir
@@ -49,19 +41,18 @@ class HTMLProcessor(DocumentProcessor):
         self.html_content = None
         self.images_data = []
         self.is_url = html_path.startswith(('http://', 'https://'))
-        
-        # Create output directory for images
+        # create output directory for images
         Path(images_output_dir).mkdir(parents=True, exist_ok=True)
         
     def __enter__(self):
-        """Context manager entry."""
+        """context manager entry."""
         if self.is_url:
             response = requests.get(self.html_path)
             response.raise_for_status()
             self.html_content = response.text
         else:
             if not os.path.exists(self.html_path):
-                raise FileNotFoundError(f"HTML file not found: {self.html_path}")
+                raise FileNotFoundError(f"html file not found: {self.html_path}")
             with open(self.html_path, 'r', encoding='utf-8') as f:
                 self.html_content = f.read()
         
@@ -69,28 +60,27 @@ class HTMLProcessor(DocumentProcessor):
         return self
         
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
+        """context manager exit."""
         self.soup = None
         self.html_content = None
     
     def extract_text(self) -> str:
         """
-        Extract all text from the HTML document.
-        
-        Returns:
-            Complete text content of the HTML document
+        extract all text from the html document.
+        returns:
+            complete text content of the html document
         """
         if not self.soup:
-            raise ValueError("HTML document not opened. Use context manager or call __enter__()")
+            raise ValueError("html document not opened. use context manager or call __enter__()")
         
-        # Remove script and style elements
+        # remove script and style elements
         for script in self.soup(["script", "style"]):
             script.decompose()
         
-        # Get text
+        # get text
         text = self.soup.get_text()
         
-        # Clean up whitespace
+        # clean up whitespace
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = '\n'.join(chunk for chunk in chunks if chunk)
@@ -100,21 +90,17 @@ class HTMLProcessor(DocumentProcessor):
     
     def extract_structured_content(self) -> Dict:
         """
-        Extract text with structure information (headings, paragraphs, sections).
-        
-        Returns:
-            Dictionary containing structured content
+        extract text with structure information (headings, paragraphs, sections).
+        returns:
+            dictionary containing structured content
         """
         if not self.soup:
-            raise ValueError("HTML document not opened. Use context manager or call __enter__()")
-        
-        # Extract title
+            raise ValueError("html document not opened. use context manager or call __enter__()")
+        # extract title
         title = self._extract_title()
-        
-        # Extract sections based on headings
+        # extract sections based on headings
         sections = self._extract_sections()
-        
-        # Count "pages" (approximate by major sections)
+        # count "pages" (approximate by major sections)
         total_sections = len([s for s in sections if s['level'] == 1])
         
         structured_content = {
@@ -131,22 +117,21 @@ class HTMLProcessor(DocumentProcessor):
     
     def _extract_title(self) -> str:
         """
-        Extract document title from HTML.
-        
-        Returns:
-            Document title
+        extract document title from html.
+        returns:
+            document title
         """
-        # Try <title> tag first
+        # try <title> tag first
         title_tag = self.soup.find('title')
         if title_tag and title_tag.get_text().strip():
             return title_tag.get_text().strip()
         
-        # Try <h1> tag
+        # try <h1> tag
         h1_tag = self.soup.find('h1')
         if h1_tag and h1_tag.get_text().strip():
             return h1_tag.get_text().strip()
         
-        # Try meta title
+        # try meta title
         meta_title = self.soup.find('meta', property='og:title')
         if meta_title and meta_title.get('content'):
             return meta_title.get('content').strip()
@@ -155,27 +140,24 @@ class HTMLProcessor(DocumentProcessor):
     
     def _extract_sections(self) -> List[Dict]:
         """
-        Extract sections from HTML based on heading tags.
-        
-        Returns:
-            List of sections with title and content
+        extract sections from html based on heading tags.
+        returns:
+            list of sections with title and content
         """
         sections = []
         current_section = None
         
-        # Find all heading and content elements
+        # find all heading and content elements
         elements = self.soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div'])
         
         for element in elements:
             tag_name = element.name
-            
-            # Check if it's a heading
+            # check if it's a heading
             if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
-                # Save previous section if it exists
+                # save previous section if it exists
                 if current_section and current_section['content'].strip():
                     sections.append(current_section)
-                
-                # Start new section
+                # start new section
                 level = int(tag_name[1])  # h1 -> 1, h2 -> 2, etc.
                 title = element.get_text().strip()
                 current_section = {
@@ -184,16 +166,14 @@ class HTMLProcessor(DocumentProcessor):
                     "level": level
                 }
             elif current_section and tag_name in ['p', 'div']:
-                # Add content to current section
+                # add content to current section
                 text = element.get_text().strip()
                 if text:
                     current_section["content"] += text + "\n\n"
-        
-        # Add the last section
+        # add the last section if it exists
         if current_section and current_section['content'].strip():
             sections.append(current_section)
-        
-        # If no sections found, create one with all content
+        # if no sections found, create one with all content
         if not sections:
             text = self.extract_text()
             sections.append({
@@ -207,43 +187,39 @@ class HTMLProcessor(DocumentProcessor):
     
     def extract_images(self, min_width: int = 100, min_height: int = 100) -> List[Dict]:
         """
-        Extract all images from the HTML document.
-        
-        Args:
-            min_width: Minimum image width to extract
-            min_height: Minimum image height to extract
-        
-        Returns:
-            List of dictionaries containing image metadata
+        extract all images from the html document.
+        args:
+            min_width: minimum image width to extract
+            min_height: minimum image height to extract
+        returns:
+            list of dictionaries containing image metadata
         """
         if not self.soup:
-            raise ValueError("HTML document not opened. Use context manager or call __enter__()")
-        
-        logger.info(f"Starting image extraction from {self.html_path}")
-        
+            raise ValueError("html document not opened. use context manager or call __enter__()")
+        logger.info(f"starting image extraction from {self.html_path}")
+        # initialize image count
         image_count = 0
+        # find all img tags
         img_tags = self.soup.find_all('img')
-        
+        # iterate over img tags
         for img_index, img_tag in enumerate(img_tags):
             try:
-                # Get image source
+                # get image source
                 src = img_tag.get('src') or img_tag.get('data-src') or ''
                 if not src:
                     continue
-                
-                # Resolve relative URLs
+                # resolve relative URLs
                 if self.is_url:
                     img_url = urllib.parse.urljoin(self.html_path, src)
                 else:
-                    # For local files, resolve relative paths
+                    # for local files, resolve relative paths
                     if not os.path.isabs(src):
                         base_dir = os.path.dirname(self.html_path)
                         img_url = os.path.join(base_dir, src)
                         img_url = os.path.normpath(img_url)
                     else:
                         img_url = src
-                
-                # Download or read image
+                # try to download or read image
                 try:
                     if self.is_url or img_url.startswith('http'):
                         response = requests.get(img_url, timeout=10)
@@ -258,8 +234,7 @@ class HTMLProcessor(DocumentProcessor):
                 except Exception as e:
                     logger.warning(f"Could not load image {img_url}: {str(e)}")
                     continue
-                
-                # Get image dimensions
+                # try to get image dimensions
                 try:
                     with Image.open(io.BytesIO(image_bytes)) as pil_img:
                         width, height = pil_img.size
@@ -268,27 +243,22 @@ class HTMLProcessor(DocumentProcessor):
                 except Exception as e:
                     logger.warning(f"Could not read image metadata: {str(e)}")
                     continue
-                
-                # Filter by size
+                # filter by size
                 if width < min_width or height < min_height:
                     logger.debug(f"Skipping small image: {width}x{height}")
                     continue
-                
-                # Generate unique filename
+                # generate unique filename  
                 image_hash = hashlib.md5(image_bytes).hexdigest()[:10]
                 ext = format_name.lower() if format_name else 'jpg'
                 filename = f"img_html_{img_index}_{image_hash}.{ext}"
-                filepath = os.path.join(self.images_output_dir, filename)
-                
-                # Save image
+                filepath = os.path.join(self.images_output_dir, filename)                
+                # save image
                 with open(filepath, "wb") as img_file:
                     img_file.write(image_bytes)
-                
-                # Get alt text and surrounding context
+                # try to get alt text and surrounding context
                 alt_text = img_tag.get('alt', '')
                 text_context = self._extract_text_context(img_tag)
-                
-                # Store metadata
+                # store metadata
                 image_metadata = {
                     "filename": filename,
                     "filepath": filepath,
@@ -305,36 +275,33 @@ class HTMLProcessor(DocumentProcessor):
                     "description": None,
                     "relevance_score": None
                 }
-                
+                # add metadata to list
                 self.images_data.append(image_metadata)
                 image_count += 1
-                
-                logger.info(f"Extracted image {image_count}: {filename} ({width}x{height})")
-                
+                # log image extraction
+                logger.info(f"extracted image {image_count}: {filename} ({width}x{height})")
+            # handle exceptions
             except Exception as e:
                 logger.error(f"Error extracting image {img_index}: {str(e)}")
                 continue
-        
-        logger.info(f"Extracted {image_count} images from HTML document")
-        
-        # Save metadata
+        # log total number of images extracted
+        logger.info(f"extracted {image_count} images from html document")
+        # save metadata to json
         self._save_image_metadata()
-        
+        # return images data
         return self.images_data
     
     def _extract_text_context(self, img_tag, context_chars: int = 500) -> str:
         """
-        Extract text near an image in the HTML.
-        
-        Args:
+        extract text near an image in the html.
+        args:
             img_tag: BeautifulSoup image tag
-            context_chars: Number of characters to extract
-        
-        Returns:
-            Text context surrounding the image
+            context_chars: number of characters to extract
+        returns:
+            text context surrounding the image
         """
         try:
-            # Get parent element and extract text
+            # get parent element and extract text
             parent = img_tag.find_parent(['article', 'section', 'div', 'p'])
             if parent:
                 text = parent.get_text().strip()
@@ -347,19 +314,19 @@ class HTMLProcessor(DocumentProcessor):
             return ""
     
     def _save_image_metadata(self):
-        """Save image metadata to JSON file."""
+        """save image metadata to json file."""
         metadata_path = os.path.join(self.images_output_dir, "images_metadata.json")
+        # save metadata to json file
         with open(metadata_path, 'w') as f:
             json.dump(self.images_data, f, indent=2)
-        
+        # log saved metadata
         logger.info(f"Saved metadata to {metadata_path}")
-    
+        
     def get_image_stats(self) -> Dict:
         """
-        Get statistics about extracted images.
-        
-        Returns:
-            Dictionary with image statistics
+        get statistics about extracted images.
+        returns:
+            dictionary with image statistics
         """
         if not self.images_data:
             return {

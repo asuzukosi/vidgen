@@ -1,4 +1,4 @@
 """
-Test package for core modules.
+test package for core modules.
 """
 

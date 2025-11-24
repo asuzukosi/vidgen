@@ -1,11 +1,11 @@
 """
 pdf processor module
-combines pdf parsing and image extraction functionality.
+extracts text, structure, and images from pdf documents.
 uses pdfplumber for text extraction and pymupdf for image extraction.
 """
 
 import pdfplumber
-import fitz  # pymupdf
+import fitz
 from PIL import Image
 import io
 import os
@@ -13,39 +13,32 @@ import json
 import hashlib
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 from utils.logger import get_logger
 from core.processors.document_processor import DocumentProcessor
 
-logger = get_logger(__name__)
+logger = get_logger('pdf_processor')
 
 
 class PDFProcessor(DocumentProcessor):
     """
-    combined processor for extracting text, structure, and images from pdf documents.
-    
+    processor for extracting text, structure, and images from pdf documents.
     args:
         pdf_path: path to the pdf file
         images_output_dir: directory to save extracted images (default: "temp/images")
-    
-    example:
-        with PDFProcessor('document.pdf') as processor:
-            content = processor.extract_structured_content()
-            images = processor.extract_images()
     """
     
     def __init__(self, pdf_path: str, images_output_dir: str = "temp/images"):
         """
         initialize pdf processor.
-        
         args:
             pdf_path: path to the pdf file
             images_output_dir: directory to save extracted images
         """
         self.pdf_path = pdf_path
         self.images_output_dir = images_output_dir
-        self.pdf = None  # pdfplumber pdf object
-        self.pdf_document = None  # pymupdf pdf object
+        self.pdf = None
+        self.pdf_document = None
         self.pages_data = []
         self.images_data = []
         
@@ -70,13 +63,12 @@ class PDFProcessor(DocumentProcessor):
     def extract_text(self) -> str:
         """
         extract all text from the pdf document.
-        
         returns:
             complete text content of the pdf document
         """
         if not self.pdf:
             raise ValueError("pdf document not opened. use context manager or call __enter__()")
-            
+        # initialize full text
         full_text = []
         for page_num, page in enumerate(self.pdf.pages, 1):
             text = page.extract_text()
@@ -192,7 +184,8 @@ class PDFProcessor(DocumentProcessor):
     def _is_likely_heading(self, text: str) -> bool:
         """
         determine if a line of text is likely a heading.
-        
+        args:
+            text: text to check
         returns:
             true if likely a heading
         """
@@ -231,12 +224,13 @@ class PDFProcessor(DocumentProcessor):
     def _detect_heading_level(self, heading: str) -> int:
         """
         detect the level of a heading (1 = main, 2 = sub, etc.).
-        
+        args:
+            heading: heading to check
         returns:
             heading level (1-3)
         """
         # check for numbered headings
-        if re.match(r'^\d+\.\d+\.\d+', heading):
+        if re.match(r'^\d+\.\.\.\d+', heading):
             return 3
         elif re.match(r'^\d+\.\d+', heading):
             return 2
@@ -253,7 +247,6 @@ class PDFProcessor(DocumentProcessor):
     def get_page_count(self) -> int:
         """
         get the total number of pages in the pdf document.
-        
         returns:
             number of pages
         """
@@ -477,7 +470,5 @@ class PDFProcessor(DocumentProcessor):
             "formats": formats,
             "pages_with_images": len(set(img['page_number'] for img in self.images_data))
         }
-    
-    # ==================== CONVENIENCE METHODS ====================
     
 

@@ -1,6 +1,6 @@
 """
-Document processors module
-Provides abstract base class and implementations for processing different document types.
+document processors module
+provides abstract base class and implementations for processing different document types.
 """
 
 from core.processors.document_processor import DocumentProcessor

@@ -1,50 +1,48 @@
 """
-Abstract base class for document processors.
-Defines the interface that all document processors must implement.
+abstract base class for the input document processors.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class DocumentProcessor(ABC):
     """
-    Abstract base class for processing different document types.
-    
-    All document processors must implement methods to:
-    - Extract text content
-    - Extract structured content with sections
-    - Extract images (if applicable)
-    - Provide metadata and statistics
+    abstract base class for the input document processors.
+    all document processors must implement methods to:
+    - extract text content
+    - extract structured content with sections
+    - extract images (if applicable)
+    - provide metadata and statistics
     """
     
+    # ==================== CONTEXT MANAGER METHODS ====================
     @abstractmethod
     def __enter__(self):
-        """Context manager entry. Must be implemented by subclasses."""
+        """context manager entry. must be implemented by subclasses."""
         pass
     
     @abstractmethod
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit. Must be implemented by subclasses."""
+        """context manager exit. must be implemented by subclasses."""
         pass
     
+    # ==================== TEXT EXTRACTION METHODS ====================
     @abstractmethod
     def extract_text(self) -> str:
         """
-        Extract all text from the document.
-        
-        Returns:
-            Complete text content of the document as a string
+        extract all text from the document.
+        returns:
+            complete text content of the document as a string
         """
         pass
     
     @abstractmethod
     def extract_structured_content(self) -> Dict:
         """
-        Extract text with structure information (headings, paragraphs, sections).
-        
-        Returns:
-            Dictionary containing structured content with the following structure:
+        extract text with structure information (headings, paragraphs, sections).
+        returns:
+            dictionary containing structured content with the following structure:
             {
                 "title": str,
                 "sections": List[Dict],  # Each dict has: title, content, level
@@ -54,17 +52,13 @@ class DocumentProcessor(ABC):
         """
         pass
     
+    # ==================== IMAGE EXTRACTION METHODS ====================
     @abstractmethod
     def extract_images(self, min_width: int = 100, min_height: int = 100) -> List[Dict]:
         """
-        Extract all images from the document.
-        
-        Args:
-            min_width: Minimum image width to extract (filters small icons)
-            min_height: Minimum image height to extract
-        
-        Returns:
-            List of dictionaries containing image metadata with structure:
+        extract all images from the document.
+        returns:
+            list of dictionaries containing image metadata with structure:
             {
                 "filename": str,
                 "filepath": str,
@@ -85,10 +79,9 @@ class DocumentProcessor(ABC):
     @abstractmethod
     def get_image_stats(self) -> Dict:
         """
-        Get statistics about extracted images.
-        
-        Returns:
-            Dictionary with image statistics:
+        get statistics about extracted images.
+        returns:
+            dictionary with image statistics:
             {
                 "total_images": int,
                 "average_size": int,
@@ -99,23 +92,22 @@ class DocumentProcessor(ABC):
         """
         pass
     
+    # ==================== PROCESS ALL METHOD ====================
     def process_all(self, extract_images: bool = True,
                    min_image_width: int = 100,
                    min_image_height: int = 100) -> Dict:
         """
-        Process document: extract both text content and images.
-        
-        Args:
-            extract_images: Whether to extract images
-            min_image_width: Minimum image width
-            min_image_height: Minimum image height
-        
-        Returns:
-            Dictionary containing both structured content and images metadata:
+        process document: extract both text content and images.
+        args:
+            extract_images: whether to extract images
+            min_image_width: minimum image width
+            min_image_height: minimum image height
+        returns:
+            dictionary containing both structured content and images metadata with the following structure:
             {
-                "content": Dict,  # Result of extract_structured_content()
-                "images": List[Dict],  # Result of extract_images()
-                "image_stats": Dict  # Result of get_image_stats()
+                "content": Dict,
+                "images": List[Dict],
+                "image_stats": Dict
             }
         """
         content = self.extract_structured_content()
