@@ -5,7 +5,16 @@ provides shared utilities for all video style generators.
 provides common functions for video composition, text rendering, and effects.
 """
 
-from typing import Tuple, Optional, List, Dict
+# set of utility functions for video generation built on moviepy.
+# Moviepy supports the following types of video clips:
+# 1. VideoClip - for video files
+# 2. ImageClip - for images
+# 3. AudioClip - for audio files
+# 4. TextClip - for text
+# 5. CompositeVideoClip - for combining multiple video clips
+
+
+from typing import Tuple, Optional, List
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from moviepy.editor import (
@@ -35,8 +44,8 @@ class VideoUtils:
     
     @staticmethod
     def create_gradient_background(width: int, height: int, 
-                                   color1: Tuple[int, int, int] = (30, 60, 114),
-                                   color2: Tuple[int, int, int] = (42, 82, 152)) -> np.ndarray:
+                                   color1: Tuple[int, int, int] = (254, 234, 201),
+                                   color2: Tuple[int, int, int] = (255, 205, 201)) -> np.ndarray:
         """
         create a gradient background.
         args:
@@ -134,12 +143,15 @@ class VideoUtils:
         else:
             # fallback to old method if no font loader
             try:
-                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+                font = ImageFont.truetype("/Users/kosisochukwuasuzu/Developer/vidgen/fonts/BebasNeue-Regular.ttf", font_size)
+                logger.info(f"loaded font: /Users/kosisochukwuasuzu/Developer/vidgen/fonts/BebasNeue-Regular.ttf (size: {font_size})")
             except:
                 try:
                     font = ImageFont.truetype("arial.ttf", font_size)
+                    logger.info(f"loaded font: arial.ttf (size: {font_size})")
                 except:
                     font = ImageFont.load_default()
+                    logger.info(f"loaded default font (size: {font_size})")
         
         # wrap text if max_width specified
         if max_width:
@@ -179,8 +191,7 @@ class VideoUtils:
     
     @staticmethod
     def create_title_card(width: int, height: int, title: str,
-                         subtitle: Optional[str] = None,
-                         background_color: Tuple[int, int, int] = (30, 60, 114)) -> np.ndarray:
+                         subtitle: Optional[str] = None) -> np.ndarray:
         """
         create a title card for video.
         args:
@@ -188,7 +199,6 @@ class VideoUtils:
             height: video height
             title: main title text
             subtitle: optional subtitle
-            background_color: background color rgb
         returns:
             numpy array representing the title card
         """
@@ -200,11 +210,11 @@ class VideoUtils:
         title_y = height // 2 - 100 if subtitle else height // 2
         img = VideoUtils.add_text_to_image(
             img, title,
-            position=(width // 2, title_y),
+            position=(100, title_y),
             font_size=80,
             color=(255, 255, 255),
-            max_width=width - 100,
-            align='center',
+            max_width=width,
+            align='left',
             font_type='title'
         )
         
@@ -212,14 +222,13 @@ class VideoUtils:
         if subtitle:
             img = VideoUtils.add_text_to_image(
                 img, subtitle,
-                position=(width // 2, height // 2 + 50),
-                font_size=40,
-                color=(200, 200, 200),
-                max_width=width - 100,
-                align='center',
+                position=(100, height // 2 + 50),
+                font_size=30,
+                color=(100, 100, 100),
+                max_width=width - 200,
+                align='left',
                 font_type='subtitle'
             )
-        
         return np.array(img)
     
     @staticmethod
@@ -297,19 +306,17 @@ class VideoUtils:
         if width_percent is not None:
             # use width percentage - image takes up specified % of horizontal space
             max_width = int(bg_width * width_percent)
-            # maintain aspect ratio, but limit height to 90% of background
-            max_height = int(bg_height * 0.9)
+
         elif scale is not None:
             # use scale factor (backward compatibility)
             max_width = int(bg_width * scale)
-            max_height = int(bg_height * scale)
         else:
             # default to 60% scale
-            max_width = int(bg_width * 0.6)
-            max_height = int(bg_height * 0.6)
-        
+            max_width = int(bg_width * 0.6)        
         # resize image
-        img = VideoUtils.resize_image_to_fit(image_path, max_width, max_height)
+        img = VideoUtils.resize_image_to_fit(image_path, 
+                                             max_width, 
+                                             bg_height)
         img_array = np.array(img)
         
         # handle rgba images
@@ -321,23 +328,23 @@ class VideoUtils:
         # calculate position
         if position == 'center':
             x = (bg_width - img_width) // 2
-            y = (bg_height - img_height) // 2
+            y = 10
         elif position == 'left':
             x = 50
-            y = (bg_height - img_height) // 2
+            y = 10
         elif position == 'right':
             # for right position with width_percent, align to right edge with padding
             x = bg_width - img_width - 50
-            y = (bg_height - img_height) // 2
+            y = 10
         elif position == 'top':
             x = (bg_width - img_width) // 2
-            y = 50
+            y = 10
         elif position == 'bottom':
             x = (bg_width - img_width) // 2
-            y = bg_height - img_height - 50
+            y = 10
         else:
             x = (bg_width - img_width) // 2
-            y = (bg_height - img_height) // 2
+            y = 10
         
         # create result
         result = background.copy()
@@ -377,37 +384,3 @@ class VideoUtils:
             logger.warning(f"error creating textclip: {e}")
             # Fallback: return None
             return None
-
-
-def test_utils():
-    """test video utilities."""
-    print("\n**** testing video utils ****\n")
-    
-    # test gradient background
-    gradient = VideoUtils.create_gradient_background(1920, 1080)
-    print(f"created gradient background: {gradient.shape}")
-    
-    # test solid background
-    solid = VideoUtils.create_solid_background(1920, 1080, (50, 50, 50))
-    print(f"created solid background: {solid.shape}")
-    
-    # Test title card
-    title_card = VideoUtils.create_title_card(
-        1920, 1080,
-        "Test Video",
-        "A subtitle"
-    )
-    print(f"created title card: {title_card.shape}")
-    
-    # test end card
-    end_card = VideoUtils.create_end_card(
-        1920, 1080,
-        "Thanks for watching!",
-        ["Created with PDF to Video Generator", "github.com/vidgen"]
-    )
-    print(f"created end card: {end_card.shape}")
-    
-    print("\n**** all tests passed ****\n")
-
-
-

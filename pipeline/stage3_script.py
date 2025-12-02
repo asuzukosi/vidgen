@@ -127,10 +127,10 @@ def main():
     )
     
     if pipeline_data.status == "completed":
-        logger.info(f"✓ scripts and voiceovers generated successfully. pipeline ID: {pipeline_data.id}")
+        logger.info(f"scripts and voiceovers generated successfully. pipeline id: {pipeline_data.id}")
         sys.exit(0)
     else:
-        logger.error(f"✗ script generation failed. pipeline ID: {pipeline_data.id}")
+        logger.error(f"script generation failed. pipeline id: {pipeline_data.id}")
         sys.exit(1)
 
 

@@ -335,7 +335,7 @@ class FontLoader:
         font_path = self.config.get('fonts.default_font')
         return self.load_font(font_path, size)
     
-    def list_available_fonts(self) -> list[str]:
+    def list_available_fonts(self) -> List[str]:
         """
         list all available font files in fonts directory.
         

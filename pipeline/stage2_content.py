@@ -54,10 +54,10 @@ def create_video_outline(pipeline_id: str,
     config = get_config()
     temp_dir = config.get('output.temp_directory', 'temp')
     
-    # Load pipeline data by ID (cache is compulsory)
+    # load pipeline data by id (cache is compulsory)
     try:
         pipeline_data = PipelineData.load_by_id(pipeline_id, temp_dir)
-        logger.info(f"loaded pipeline data: {pipeline_data.id}")
+        logger.info(f"loaded pipeline data for id: {pipeline_id}")
     except FileNotFoundError:
         logger.error(f"pipeline data not found for ID: {pipeline_id}")
         logger.error("run stage1_parsing.py first")
@@ -128,7 +128,9 @@ def create_video_outline(pipeline_id: str,
         # Fetch stock images
         if not skip_stock and config.get('images.use_stock_images', True):
             logger.info("fetching stock images")
-            fetcher = StockImageFetcher(config.unsplash_access_key, config.pexels_api_key)
+            fetcher = StockImageFetcher(config.unsplash_access_key, config.pexels_api_key, output_dir=os.path.join(temp_dir, 
+                                                                                                                   pipeline_data.id, 'images', 
+                                                                                                                   'stock_images'))
             availability = fetcher.is_available()
             if availability['unsplash'] or availability['pexels']:
                 preferred = config.get('images.preferred_stock_provider', 'unsplash')
@@ -167,7 +169,7 @@ def create_video_outline(pipeline_id: str,
         pipeline_data.save_to_folder(temp_dir)
         pipeline_data.save_to_pickle(os.path.join(temp_dir, f"pipeline_{pipeline_data.id}.pkl"))
         
-        logger.info(f"video outline created. pipeline ID: {pipeline_data.id}")
+        logger.info(f"video outline created. pipeline id: {pipeline_data.id}")
         return pipeline_data
         
     except Exception as e:
@@ -193,10 +195,10 @@ def main():
     )
     
     if pipeline_data.status == "completed":
-        logger.info(f"✓ video outline created successfully. pipeline ID: {pipeline_data.id}")
+        logger.info(f"video outline created successfully. pipeline id: {pipeline_data.id}")
         sys.exit(0)
     else:
-        logger.error(f"✗ video outline creation failed. pipeline ID: {pipeline_data.id}")
+        logger.error(f"video outline creation failed. pipeline id: {pipeline_data.id}")
         sys.exit(1)
 
 

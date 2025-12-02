@@ -13,13 +13,12 @@ workflow sequence:
     
     Note: The workflow can be customized based on document type and requirements.
 """
-
+# TODO: figure out why font generation is not working properly.
 import sys
 import os
 import argparse
 from pathlib import Path
 from typing import Optional
-
 # add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -48,12 +47,12 @@ def video_generation(pipeline_id: str,
     config = get_config()
     temp_dir = config.get('output.temp_directory', 'temp')
     
-    # load pipeline data by id (cache is compulsory)
+    # load pipeline data by id (cache is required)
     try:
         pipeline_data = PipelineData.load_by_id(pipeline_id, temp_dir)
         logger.info(f"loaded pipeline data for id: {pipeline_id}")
     except FileNotFoundError:
-        logger.error(f"pipeline data not found for ID: {pipeline_id}")
+        logger.error(f"pipeline data not found for id: {pipeline_id}")
         logger.error("run stages 1-3 first to create pipeline data")
         sys.exit(1)
     
@@ -67,27 +66,27 @@ def video_generation(pipeline_id: str,
     
     try:
         script_with_audio = pipeline_data.script_with_audio
-        logger.info(f"using script with audio for {len(script_with_audio['segments'])} segments")
+        logger.info(f"using script with audio for {len(script_with_audio['segments'])} segments in total")
         
-        # Determine output path (use pipeline ID for filename)
+        # determine output path (use pipeline id for filename)
         if not output_path:
             output_dir = config.get('output.directory', 'output')
             Path(output_dir).mkdir(parents=True, exist_ok=True)
             output_path = os.path.join(output_dir, f"video_{pipeline_data.id}.mp4")
         
-        # Store output path in pipeline data
+        # store output path in pipeline data
         pipeline_data.output_path = output_path
         
         logger.info(f"generating video...")
         logger.info(f"output: {output_path}")
         
-        # Generate video
+        # generate video
         video_gen = VideoGenerator(config)
         video_path = video_gen.generate_video(script_with_audio, output_path)
         
         if os.path.exists(video_path):
             pipeline_data.video_path = video_path
-            pipeline_data.output_path = output_path  # Ensure it's stored
+            pipeline_data.output_path = output_path  # ensure it's stored
             pipeline_data.update_stage("video_generation", "completed")
             logger.info(f"video generated successfully: {video_path}")
         else:
@@ -99,7 +98,7 @@ def video_generation(pipeline_id: str,
         pipeline_data.save_to_folder(temp_dir)
         pipeline_data.save_to_pickle(os.path.join(temp_dir, f"pipeline_{pipeline_data.id}.pkl"))
         
-        logger.info(f"video generation complete. pipeline ID: {pipeline_data.id}")
+        logger.info(f"video generation complete. pipeline id: {pipeline_data.id}")
         return pipeline_data
         
     except Exception as e:
@@ -122,11 +121,11 @@ def main():
     )
     
     if pipeline_data.status == "completed" and pipeline_data.video_path:
-        logger.info(f"✓ video generated successfully: {pipeline_data.video_path}")
+        logger.info(f"video generated successfully: {pipeline_data.video_path}")
         logger.info(f"pipeline id: {pipeline_data.id}")
         sys.exit(0)
     else:
-        logger.error(f"✗ video generation failed. pipeline ID: {pipeline_data.id}")
+        logger.error(f"video generation failed. pipeline id: {pipeline_data.id}")
         sys.exit(1)
 
 

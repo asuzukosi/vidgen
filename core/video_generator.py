@@ -134,7 +134,7 @@ class VideoGenerator:
             self.width,
             self.height,
             title,
-            subtitle="AI-Generated Explainer Video"
+            subtitle="Explainer Video by VidGen"
         )
         
         clip = ImageClip(title_card).set_duration(duration)
@@ -156,10 +156,10 @@ class VideoGenerator:
             self.width,
             self.height,
             message="Thank you for watching!",
-            credits=[
-                "Created with PDF to Video Generator",
-                "Powered by AI"
-            ]
+            # credits=[
+            #     "Created with PDF to Video Generator",
+            #     "Powered by AI"
+            # ]
         )
         
         clip = ImageClip(end_card).set_duration(duration)
@@ -260,27 +260,13 @@ class VideoGenerator:
             background as numpy array
         """
         if self.background_type == 'gradient':
-            # use different pastel gradient colors for variety
-            colors = [
-                ((200, 220, 240), (230, 240, 250)),   # Pastel Blue - soft sky to light blue
-                ((220, 210, 240), (240, 235, 250)),   # Pastel Lavender - soft purple tones
-                ((200, 240, 230), (230, 250, 245)),   # Pastel Mint - soft green/mint
-                ((255, 220, 210), (255, 240, 235)),   # Pastel Peach - soft pink/peach
-                ((240, 200, 220), (250, 230, 240)),   # Pastel Rose - soft pink/rose
-                ((200, 235, 245), (230, 245, 255)),   # Pastel Aqua - soft aqua/cyan
-                ((245, 230, 200), (255, 245, 230)),   # Pastel Cream - soft cream/beige
-                ((220, 230, 240), (240, 245, 250)),   # Pastel Gray-Blue - soft gray-blue
-            ]
-            color_pair = colors[hash(segment['title']) % len(colors)]
             return VideoUtils.create_gradient_background(
                 self.width, self.height,
-                color_pair[0], color_pair[1]
             )
         else:
             # solid color
             return VideoUtils.create_solid_background(
                 self.width, self.height,
-                color=(45, 45, 45)
             )
     
     def _add_image_to_slide(self, background: np.ndarray, image_path: str) -> np.ndarray:
@@ -300,7 +286,7 @@ class VideoGenerator:
                     background,
                     image_path,
                     position='right',
-                    width_percent=0.4
+                    width_percent=0.6
                 )
             except Exception as e:
                 logger.warning(f"Could not add image {image_path}: {str(e)}")
