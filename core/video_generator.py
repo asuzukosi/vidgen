@@ -100,9 +100,9 @@ class VideoGenerator:
         logger.info("concatenating video clips...")
         final_video = concatenate_videoclips(clips, method='compose')
         
-        # Note: Audio is already added per-segment in _create_segment_clip
-        # Full audio track is optional and would need pipeline_id to locate
-        # For now, we rely on per-segment audio which is already set
+        # note: audio is already added per-segment in _create_segment_clip
+        # full audio track is optional and would need pipeline_id to locate
+        # for now, we rely on per-segment audio which is already set
         
         # write video file
         logger.info(f"Writing video to {output_path}...")
@@ -113,15 +113,15 @@ class VideoGenerator:
             audio_codec=self.config.get('output.audio_codec', 'aac'),
             temp_audiofile='temp_audio.m4a',
             remove_temp=True,
-            logger=None  # Suppress moviepy's verbose output
+            # logger=None  # Suppress moviepy's verbose output
         )
         
-        logger.info(f"✓ Video generated successfully: {output_path}")
+        logger.info(f"video generated successfully: {output_path}")
         return output_path
     
     def _create_title_card(self, title: str, duration: float = 3.0) -> VideoClip:
         """
-        create title card clip.
+        create title card clip. 
         args:
             title: video title
             duration: duration in seconds
@@ -155,11 +155,7 @@ class VideoGenerator:
         end_card = VideoUtils.create_end_card(
             self.width,
             self.height,
-            message="Thank you for watching!",
-            # credits=[
-            #     "Created with PDF to Video Generator",
-            #     "Powered by AI"
-            # ]
+            message="Thank you for watching!"
         )
         
         clip = ImageClip(end_card).set_duration(duration)
@@ -286,7 +282,8 @@ class VideoGenerator:
                     background,
                     image_path,
                     position='right',
-                    width_percent=0.6
+                    width_percentage=0.6,
+                    mode='fill'
                 )
             except Exception as e:
                 logger.warning(f"Could not add image {image_path}: {str(e)}")
@@ -310,54 +307,56 @@ class VideoGenerator:
         image_path = self._get_image_path(segment)
         has_image = image_path and os.path.exists(image_path)
         
-        # calculate text area width (60% if image exists, full width otherwise)
-        text_area_width = int(self.width * 0.6) if has_image else self.width - 200
-        text_start_x = 100
-        
+        # calculate text area width (40% if image exists as the image takes up 60% of the width, full width otherwise)
+        text_area_width = int(self.width * 0.4) if has_image else self.width - 200
+        position_x = 50
+        position_y = 50
+
+        line_spacing = 30
         # fixed video title at top (all segments)
         # use darker color for better contrast on pastel backgrounds
-        video_title_y = 50
-        img = VideoUtils.add_text_to_image(
+        img, space_used = VideoUtils.add_text_to_image(
             img,
             self.video_title,
-            position=(text_start_x, video_title_y),
-            font_size=50,
-            color=(60, 60, 80),  # dark gray-blue for contrast on pastel
-            max_width=text_area_width,
-            font_type='title'
+            position=(position_x, position_y),
+            font_size=70,
+            color=(255, 255, 255),
+            max_width=text_area_width - 100,
+            align='left'
         )
-        
+        space_used += 30
+        position_y += space_used + line_spacing
+
         # segment title below video title (no segment number prefix)
-        segment_title_y = 130
-        img = VideoUtils.add_text_to_image(
+        img, space_used = VideoUtils.add_text_to_image(
             img,
             segment['title'],
-            position=(text_start_x, segment_title_y),
-            font_size=60,
-            color=(50, 50, 70),  # darker for better contrast
+            position=(position_x, position_y),
+            font_size=50,
+            color=(255, 255, 255),
             max_width=text_area_width,
-            font_type='title'
+            align='left'
         )
+
+        position_y += space_used + line_spacing
         
         # add key points (first 3) with better spacing
         key_points = segment.get('key_points', [])[:3]
         if key_points:
-            y_pos = 220
-            line_spacing = 80  # increased spacing between bullet points
-            
+            position_y += 20          
             for point in key_points:
                 # add bullet point with proper alignment
                 point_text = f"• {point}"
-                img = VideoUtils.add_text_to_image(
+                img, space_used = VideoUtils.add_text_to_image(
                     img,
                     point_text,
-                    position=(text_start_x + 20, y_pos),  # indented for bullet
-                    font_size=42,
-                    color=(70, 70, 90),  # dark gray for readability on pastel
+                    position=(position_x + 20, position_y),  # indented for bullet
+                    font_size=40,
+                    color=(255, 255, 255),
                     max_width=text_area_width - 40,  # account for indentation
-                    font_type='body'
+                    align='left'
                 )
-                y_pos += line_spacing
+                position_y += space_used + line_spacing
         
         return np.array(img)
 

@@ -232,6 +232,36 @@ class FontLoader:
         logger.warning(f"using default font (size: {size})")
         return ImageFont.load_default()
     
+    def get_font(self, font_name: Optional[str], size: int) -> ImageFont.FreeTypeFont:
+        """
+        get a font by its name/path or use default if not available.
+        logs an error if the requested font is not available and falls back to default font.
+        args:
+            font_name: font name or filename or relative/absolute path
+            size: font size
+        returns:
+            PIL ImageFont object
+        """
+        if font_name:
+            font = self._try_load_font(font_name, size)
+            if font:
+                return font
+            logger.error(f"Font '{font_name}' not available. Falling back to default font.")
+        # use default font from config, or fallback to system
+        return self.get_default_font(size)
+    
+    def get_default_font(self, size: int) -> ImageFont.FreeTypeFont:
+        """
+        get default font.
+        uses default_font from config if available, otherwise system default.
+        args:
+            size: font size
+        returns:
+            PIL ImageFont object
+        """
+        font_path = self.config.get('fonts.default_font')
+        return self.load_font(font_path, size)
+    
     def _try_load_font(self, font_path: Optional[str], size: int) -> Optional[ImageFont.FreeTypeFont]:
         """
         try to load a font, returning None if it fails.
@@ -263,78 +293,7 @@ class FontLoader:
         except Exception as e:
             logger.debug(f"failed to load font {resolved_path}: {e}")
             return None
-    
-    def get_title_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """
-        get font for titles.
-        falls back to default font if title font is not available.
-        
-        args:
-            size: font size
-        
-        returns:
-            PIL ImageFont object
-        """
-        font_path = self.config.get('fonts.title_font')
-        font = self._try_load_font(font_path, size)
-        if font:
-            return font
-        
-        # fallback to default font
-        return self.get_default_font(size)
-    
-    def get_body_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """
-        get font for body text.
-        falls back to default font if body font is not available.
-        
-        args:
-            size: font size
-        
-        returns:
-            PIL ImageFont object
-        """
-        font_path = self.config.get('fonts.body_font')
-        font = self._try_load_font(font_path, size)
-        if font:
-            return font
-        
-        # fallback to default font
-        return self.get_default_font(size)
-    
-    def get_subtitle_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """
-        get font for subtitles.
-        falls back to default font if subtitle font is not available.
-        
-        args:
-            size: font size
-        
-        returns:
-            PIL ImageFont object
-        """
-        font_path = self.config.get('fonts.subtitle_font')
-        font = self._try_load_font(font_path, size)
-        if font:
-            return font
-        
-        # fallback to default font
-        return self.get_default_font(size)
-    
-    def get_default_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """
-        get default font.
-        uses default_font from config if available, otherwise system default.
-        
-        args:
-            size: font size
-        
-        returns:
-            PIL ImageFont object
-        """
-        font_path = self.config.get('fonts.default_font')
-        return self.load_font(font_path, size)
-    
+
     def list_available_fonts(self) -> List[str]:
         """
         list all available font files in fonts directory.
