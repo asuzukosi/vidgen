@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
 from utils.logger import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger("script_generator")
 
 
 class ScriptGenerator:
@@ -28,8 +28,7 @@ class ScriptGenerator:
         """
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
-            raise ValueError("openai api key required")
-        
+            raise ValueError("openai api key is required")
         self.client = OpenAI(api_key=self.api_key)
         self.model = "gpt-4o"
         
@@ -65,7 +64,6 @@ class ScriptGenerator:
                 len(video_outline['segments']),
                 video_outline.get('title', '')
             )
-            
             # add script to segment
             segment_with_script = segment.copy()
             segment_with_script['script'] = script_text
@@ -90,17 +88,15 @@ class ScriptGenerator:
                                  total_segments: int, video_title: str) -> str:
         """
         generate script for a single segment.
-        
         args:
             segment: segment dictionary
             segment_num: segment number
             total_segments: total number of segments
             video_title: overall video title
         returns:
-            script text
+            generated script text
         """
         prompt = self._create_script_prompt(segment, segment_num, total_segments, video_title)
-        
         try:
             # load system prompt from template
             system_template = self.jinja_env.get_template('script_system.j2')
@@ -132,13 +128,21 @@ class ScriptGenerator:
             
         except Exception as e:
             logger.error(f"error generating script for segment {segment_num}: {str(e)}")
-            # Fallback to basic script
+            # fallback to basic script
             return self._create_fallback_script(segment)
     
     def _create_script_prompt(self, segment: Dict, segment_num: int, 
                              total_segments: int, video_title: str) -> str:
-        """create prompt for script generation."""
-        
+        """
+        create prompt for script generation.
+        args:
+            segment: segment dictionary
+            segment_num: segment number
+            total_segments: total number of segments
+            video_title: overall video title
+        returns:
+            prompt for script generation
+        """
         is_intro = segment_num == 1
         is_conclusion = segment_num == total_segments
         
@@ -160,11 +164,11 @@ class ScriptGenerator:
     
     def _clean_script(self, script: str) -> str:
         """
-        clean up generated script text.
+        clean up generated script text to remove any stage directions or formatting markers used by the model.
         args:
             script: raw script text
         returns:
-            cleaned script
+            cleaned script text
         """
         # remove any stage directions or formatting markers
         script = script.replace('[', '').replace(']', '')
@@ -176,7 +180,7 @@ class ScriptGenerator:
             line = line.strip()
             if line and not line.endswith(':') or len(line) > 20:
                 # remove common prefixes
-                for prefix in ['SCRIPT:', 'Narrator:', 'Voice:', 'VO:']:
+                for prefix in ['SCRIPT:', 'Narrator:', 'Voice:', 'VO:', 'VOICEOVER:', 'NARRATOR:', 'VOICE:', 'SCENE:', 'SEGMENT:']:
                     if line.startswith(prefix):
                         line = line[len(prefix):].strip()
                 lines.append(line)
@@ -184,7 +188,13 @@ class ScriptGenerator:
         return ' '.join(lines)
     
     def _create_fallback_script(self, segment: Dict) -> str:
-        """create a basic script as fallback."""
+        """
+        create a basic script as fallback.
+        args:
+            segment: segment dictionary
+        returns:
+            basic script text
+        """
         title = segment['title']
         purpose = segment.get('purpose', '')
         key_points = segment.get('key_points', [])
@@ -211,9 +221,9 @@ class ScriptGenerator:
             current = segments[i]
             next_seg = segments[i + 1]
             
-            # Add transition hint (can be used in video generation)
+            # add transition hint (can be used in video generation)
             current['transition_to'] = next_seg['title']
-            current['transition_type'] = 'fade'  # Default transition
+            current['transition_type'] = 'fade'  # default transition
         
         return segments
     
@@ -230,7 +240,7 @@ class ScriptGenerator:
         for i, segment in enumerate(segments, 1):
             full_script_parts.append(f"[SEGMENT {i}: {segment['title']}]")
             full_script_parts.append(segment.get('script', ''))
-            full_script_parts.append("")  # Empty line between segments
+            full_script_parts.append("")  # empty line between segments
         
         return '\n'.join(full_script_parts)
     
@@ -244,7 +254,7 @@ class ScriptGenerator:
         with open(output_path, 'w') as f:
             json.dump(script_data, f, indent=2)
         
-        logger.info(f"Saved script to {output_path}")
+        logger.info(f"saved script to {output_path}")
     
     def export_script_text(self, script_data: Dict, output_path: str):
         """

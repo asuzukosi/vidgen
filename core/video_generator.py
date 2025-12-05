@@ -29,7 +29,7 @@ from utils.font_loader import FontLoader
 from utils.logger import get_logger
 from utils.config_loader import Config
 
-logger = get_logger(__name__)
+logger = get_logger("video_generator")
 
 
 class VideoGenerator:
@@ -52,18 +52,15 @@ class VideoGenerator:
         self.enable_animations = config.get('styles.slideshow.enable_animations', False)
         
         # initialize font loader
-        self.font_loader = FontLoader(config)
+        self.font_loader = FontLoader(config) # TODO: allow for setting of multiple font folders to load from
         VideoUtils.set_font_loader(self.font_loader)
-        
         # video title will be set when generate_video is called
         self.video_title = "Untitled"
-        
-        logger.info(f"Initialized VideoGenerator: {self.width}x{self.height} @ {self.fps}fps")
-        
+        logger.info(f"initialized video generator: {self.width}x{self.height} @ {self.fps}fps")
         # log available fonts
         available_fonts = self.font_loader.list_available_fonts()
         if available_fonts:
-            logger.info(f"Available fonts: {', '.join(available_fonts)}")
+            logger.info(f"available fonts: {', '.join(available_fonts)}")
     
     def generate_video(self, script_with_audio: Dict, output_path: str) -> str:
         """
@@ -105,7 +102,7 @@ class VideoGenerator:
         # for now, we rely on per-segment audio which is already set
         
         # write video file
-        logger.info(f"Writing video to {output_path}...")
+        logger.info(f"writing video to {output_path}...")
         final_video.write_videofile(
             output_path,
             fps=self.fps,
@@ -113,7 +110,7 @@ class VideoGenerator:
             audio_codec=self.config.get('output.audio_codec', 'aac'),
             temp_audiofile='temp_audio.m4a',
             remove_temp=True,
-            # logger=None  # Suppress moviepy's verbose output
+            # logger=None  # suppress moviepy's verbose output
         )
         
         logger.info(f"video generated successfully: {output_path}")
@@ -128,7 +125,7 @@ class VideoGenerator:
         returns:
             video clip for title card
         """
-        logger.info("Creating title card...")
+        logger.info("creating title card...")
         
         title_card = VideoUtils.create_title_card(
             self.width,
@@ -150,7 +147,7 @@ class VideoGenerator:
         returns:
             video clip for end card
         """
-        logger.info("Creating end card...")
+        logger.info("creating end card...")
         
         end_card = VideoUtils.create_end_card(
             self.width,
@@ -205,7 +202,7 @@ class VideoGenerator:
             return clip
             
         except Exception as e:
-            logger.error(f"Error creating segment clip {segment_number}: {str(e)}", exc_info=True)
+            logger.error(f"error creating segment clip {segment_number}: {str(e)}", exc_info=True)
             return None
     
     def _get_image_path(self, segment: Dict) -> Optional[str]:
@@ -268,7 +265,7 @@ class VideoGenerator:
     def _add_image_to_slide(self, background: np.ndarray, image_path: str) -> np.ndarray:
         """
         add image to slide background.
-        image takes up 40% of horizontal space on the right side.
+        image takes up 50% of horizontal space on the right side.
         args:
             background: background numpy array
             image_path: path to image file
@@ -277,16 +274,16 @@ class VideoGenerator:
         """
         if image_path and os.path.exists(image_path):
             try:
-                # composite image on right side, taking 40% of width
+                # composite image on right side, taking 50% of width
                 background = VideoUtils.composite_image_on_background(
                     background,
                     image_path,
                     position='right',
-                    width_percentage=0.6,
+                    width_percentage=0.5,
                     mode='fill'
                 )
             except Exception as e:
-                logger.warning(f"Could not add image {image_path}: {str(e)}")
+                logger.warning(f"could not add image {image_path}: {str(e)}")
         
         return background
     
@@ -307,8 +304,11 @@ class VideoGenerator:
         image_path = self._get_image_path(segment)
         has_image = image_path and os.path.exists(image_path)
         
-        # calculate text area width (40% if image exists as the image takes up 60% of the width, full width otherwise)
-        text_area_width = int(self.width * 0.4) if has_image else self.width - 200
+        # calculate text area width (50% if image exists as the image takes up 50% of the width, full width otherwise)
+        if has_image:
+            text_area_width = int(self.width * 0.5)
+        else:
+            text_area_width = self.width - 200
         position_x = 50
         position_y = 50
 
@@ -364,7 +364,6 @@ class VideoGenerator:
 def generate_video(script_with_audio: Dict, config: Config, output_path: str) -> str:
     """
     convenience function to generate video.
-    
     args:
         script_with_audio: script data with audio
         config: configuration object

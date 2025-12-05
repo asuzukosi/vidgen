@@ -12,14 +12,11 @@ Key Points to Cover:
 {% endif %}
 
 Guidelines:
-1. Write in a conversational, friendly tone
+1. Write in a conversational tone
 2. Aim for approximately {{ (segment.duration * 2.5) | round(0) | int }} words (based on ~150 words/minute speaking rate)
-3. Start naturally - {% if is_intro %}introduce the topic{% else %}continue from the previous segment{% endif %}
-4. {% if not is_conclusion %}End with an engaging hook{% else %}End with a strong conclusion or call-to-action{% endif %}
+3. Start naturally - {% if is_intro %}introduce the topic{% else %}discuss the topic based on the segment's purpose and key points{% endif %}
+4. {% if is_conclusion %}End with a strong conclusion or call-to-action{% else %}End by closing the points made in the segment{% endif %}
 5. Use simple, clear language
 6. Make it engaging and memorable
-7. Don't use stage directions or descriptions - only the words to be spoken
-8. Don't number points or use bullet formatting
 
 Write the script now:
-

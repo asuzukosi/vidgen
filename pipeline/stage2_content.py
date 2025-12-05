@@ -2,7 +2,6 @@
 content analysis operation
 analyze content and create video outline with visual asset planning.
 requires pipeline_id to load cached pipeline data.
-
 workflow sequence:
     this is the second operation in the standard workflow:
     1. document_processing  - parse pdf and extract content (stage1)
@@ -38,28 +37,25 @@ def create_video_outline(pipeline_id: str,
                          segment_duration: int = 45) -> PipelineData:
     """
     analyze content and create video outline.
-    requires pipeline_id to load cached pipeline data.
-    
+    requires pipeline_id to load cached pipeline data (cache is required).
     args:
         pipeline_id: uuid of existing pipeline data
         skip_stock: skip stock image fetching
         target_segments: target number of video segments
         segment_duration: target duration per segment in seconds
-    
     returns:
         pipelinedata instance with video outline
     """
     logger.info("stage 2: content analysis started")
-    
     config = get_config()
     temp_dir = config.get('output.temp_directory', 'temp')
     
-    # load pipeline data by id (cache is compulsory)
+    # load pipeline data by id (cache is required)
     try:
         pipeline_data = PipelineData.load_by_id(pipeline_id, temp_dir)
-        logger.info(f"loaded pipeline data for id: {pipeline_id}")
+        logger.info(f"loaded pipeline data: {pipeline_data.id}")
     except FileNotFoundError:
-        logger.error(f"pipeline data not found for ID: {pipeline_id}")
+        logger.error(f"pipeline data not found for id: {pipeline_id}")
         logger.error("run stage1_parsing.py first")
         sys.exit(1)
     
@@ -81,7 +77,7 @@ def create_video_outline(pipeline_id: str,
         
         logger.info(f"loaded {len(pdf_content['sections'])} sections and {len(images_metadata)} images")
         
-        # Process context into chunks
+        # process context into chunks
         logger.info("processing context into chunks")
         all_content = ""
         for section in pdf_content['sections']:
@@ -100,7 +96,7 @@ def create_video_outline(pipeline_id: str,
         chunks = context_processor.get_chunks()
         pipeline_data.chunks = chunks
         
-        # Store context processor information
+        # store context processor information
         pipeline_data.context_processor_info = {
             'document_title': pdf_content['title'],
             'chunk_length': chunk_length,
@@ -111,7 +107,7 @@ def create_video_outline(pipeline_id: str,
         
         logger.info(f"generated {len(chunks)} chunks")
         
-        # Create video outline
+        # create video outline
         logger.info("creating video outline")
         analyzer = ContentAnalyzer(
             api_key=config.openai_api_key,
@@ -125,7 +121,7 @@ def create_video_outline(pipeline_id: str,
             document_title=pdf_content['title']
         )
         
-        # Fetch stock images
+        # fetch stock images
         if not skip_stock and config.get('images.use_stock_images', True):
             logger.info("fetching stock images")
             fetcher = StockImageFetcher(config.unsplash_access_key, config.pexels_api_key, output_dir=os.path.join(temp_dir, 
@@ -136,11 +132,11 @@ def create_video_outline(pipeline_id: str,
                 preferred = config.get('images.preferred_stock_provider', 'unsplash')
                 outline['segments'] = fetcher.fetch_for_segments(outline['segments'], preferred)
             else:
-                logger.info("no stock image api keys configured")
+                logger.info("no stock image api keys available")
         else:
             logger.info("skipping stock images")
         
-        # Generate AI images if enabled
+        # generate ai images if enabled
         if config.get('images.use_ai_generated', False):
             logger.info("generating ai images")
             generator = ImageGenerator(
@@ -157,23 +153,23 @@ def create_video_outline(pipeline_id: str,
                     pipeline_id=pipeline_data.id
                 )
             else:
-                logger.warning("ai image generation not available (missing api key)")
+                logger.warning("image generation not available (missing api keys)")
         else:
             logger.info("skipping ai image generation")
         
-        # Update pipeline data
+        # update pipeline data
         pipeline_data.video_outline = outline
         pipeline_data.update_stage("content_analysis", "completed")
         
-        # Save pipeline data
+        # save pipeline data
         pipeline_data.save_to_folder(temp_dir)
         pipeline_data.save_to_pickle(os.path.join(temp_dir, f"pipeline_{pipeline_data.id}.pkl"))
         
-        logger.info(f"video outline created. pipeline id: {pipeline_data.id}")
+        logger.info(f"video outline created: {pipeline_data.id}")
         return pipeline_data
         
     except Exception as e:
-        logger.error(f"error during content analysis: {str(e)}", exc_info=True)
+        logger.error(f"error during content analysis: {str(e)}")
         pipeline_data.update_stage("content_analysis", "failed")
         return pipeline_data
 

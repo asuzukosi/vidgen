@@ -11,15 +11,12 @@ workflow sequence:
     
     note: the workflow can be customized based on document type and requirements.
 """
-
 import sys
 import os
 import argparse
 from typing import Optional
-
 # add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from utils.logger import setup_logging, get_logger
 from utils.config_loader import get_config
 from core.script_generator import ScriptGenerator
@@ -35,11 +32,9 @@ def generate_scripts_and_voiceovers(pipeline_id: str,
     """
     generate scripts and voiceovers from video outline.
     requires pipeline_id to load cached pipeline data.
-    
     args:
         pipeline_id: uuid of existing pipeline data
         provider: voiceover provider (elevenlabs or gtts)
-    
     returns:
         pipelinedata instance with scripts and audio
     """
@@ -47,8 +42,7 @@ def generate_scripts_and_voiceovers(pipeline_id: str,
     
     config = get_config()
     temp_dir = config.get('output.temp_directory', 'temp')
-    
-    # Load pipeline data by ID (cache is compulsory)
+    # load pipeline data by ID (cache is required)
     try:
         pipeline_data = PipelineData.load_by_id(pipeline_id, temp_dir)
         logger.info(f"loaded pipeline data: {pipeline_data.id}")
@@ -69,7 +63,7 @@ def generate_scripts_and_voiceovers(pipeline_id: str,
         outline = pipeline_data.video_outline
         logger.info(f"using outline with {len(outline['segments'])} segments")
         
-        # Generate scripts
+        # generate scripts
         logger.info("generating scripts")
         script_gen = ScriptGenerator(api_key=config.openai_api_key, prompts_dir=config.get_prompts_directory())
         script_data = script_gen.generate_script(outline)

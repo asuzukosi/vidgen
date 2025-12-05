@@ -94,7 +94,7 @@ def video_generation(pipeline_id: str,
             pipeline_data.update_stage("video_generation", "failed")
             return pipeline_data
         
-        # Save pipeline data
+        # save pipeline data to folder and pickle file
         pipeline_data.save_to_folder(temp_dir)
         pipeline_data.save_to_pickle(os.path.join(temp_dir, f"pipeline_{pipeline_data.id}.pkl"))
         
